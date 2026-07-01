@@ -13,8 +13,6 @@
  * ─────────────────────────────────────────────────────────────────────────────
  */
 
-import "dotenv/config";
-
 // PocketBase realtime (SSE) requires EventSource in Node.js
 import EventSource from "eventsource";
 global.EventSource = EventSource;
