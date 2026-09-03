@@ -1,0 +1,156 @@
+{
+  "manifest_version": "1",
+  "round": "18",
+  "status": "DRAFTED",
+  "basis": "Identical to R17 release1b_schema_manifest.json — no schema changes in R18",
+  "description": "Schema manifest for Release 1B. All rule expressions marked UNRESOLVED must be verified against actual migration JS files before --run.",
+  "collections": {
+    "users": {
+      "type": "auth",
+      "key_fields": {
+        "role": { "type": "select", "values": ["user", "admin", "superadmin"], "max_select": 1, "required": true, "default": "user" },
+        "name": { "type": "text" },
+        "language": { "type": "text" },
+        "phone_verified": { "type": "bool", "note": "Historical flag; set server-side only" },
+        "is_alias_account": { "type": "bool", "note": "Alias accounts must return 400 on auth (same as wrong-password)" },
+        "avatar": { "type": "file", "max_select": 1 }
+      },
+      "access_rules": {
+        "listRule": "UNRESOLVED__NEEDS_EXTERNAL",
+        "viewRule": "UNRESOLVED__NEEDS_EXTERNAL",
+        "createRule": "UNRESOLVED__NEEDS_EXTERNAL",
+        "updateRule": "UNRESOLVED__NEEDS_EXTERNAL",
+        "deleteRule": "UNRESOLVED__NEEDS_EXTERNAL"
+      },
+      "field_protection_requirements": {
+        "role": "Must not be settable by ordinary user on self or others",
+        "phone_verified": "Must not be settable by any user role via API",
+        "is_alias_account": "Must not be settable by any user role via API"
+      }
+    },
+    "children": {
+      "type": "base",
+      "key_fields": {
+        "parent": { "type": "relation", "collection": "users", "max_select": 1, "cascade_delete": true, "required": true },
+        "name": { "type": "text", "required": true },
+        "has_newborn_content": { "type": "bool" }
+      },
+      "access_rules": {
+        "listRule": "UNRESOLVED__NEEDS_EXTERNAL__expected: parent = @request.auth.id",
+        "viewRule": "UNRESOLVED__NEEDS_EXTERNAL__expected: parent = @request.auth.id",
+        "createRule": "UNRESOLVED__NEEDS_EXTERNAL__expected: @request.auth.id != '' && @request.body.parent = @request.auth.id",
+        "updateRule": "UNRESOLVED__NEEDS_EXTERNAL__expected: parent = @request.auth.id",
+        "deleteRule": "UNRESOLVED__NEEDS_EXTERNAL__expected: parent = @request.auth.id"
+      }
+    },
+    "growth_records": {
+      "type": "base",
+      "key_fields": {
+        "child": { "type": "relation", "collection": "children", "max_select": 1, "cascade_delete": true, "required": true },
+        "weight_kg": { "type": "number" },
+        "height_cm": { "type": "number" }
+      },
+      "access_rules": { "listRule": "UNRESOLVED__NEEDS_EXTERNAL", "viewRule": "UNRESOLVED__NEEDS_EXTERNAL", "createRule": "UNRESOLVED__NEEDS_EXTERNAL", "updateRule": "UNRESOLVED__NEEDS_EXTERNAL", "deleteRule": "UNRESOLVED__NEEDS_EXTERNAL" }
+    },
+    "activities": {
+      "type": "base",
+      "key_fields": {
+        "child": { "type": "relation", "collection": "children", "max_select": 1, "cascade_delete": true, "required": true },
+        "description": { "type": "text" }
+      },
+      "access_rules": { "listRule": "UNRESOLVED__NEEDS_EXTERNAL", "viewRule": "UNRESOLVED__NEEDS_EXTERNAL", "createRule": "UNRESOLVED__NEEDS_EXTERNAL", "updateRule": "UNRESOLVED__NEEDS_EXTERNAL", "deleteRule": "UNRESOLVED__NEEDS_EXTERNAL" }
+    },
+    "immunizations": {
+      "type": "base",
+      "key_fields": {
+        "child": { "type": "relation", "collection": "children", "max_select": 1, "cascade_delete": true, "required": true },
+        "vaccine_name": { "type": "text", "required": true },
+        "administered_at": { "type": "date" }
+      },
+      "access_rules": { "listRule": "UNRESOLVED__NEEDS_EXTERNAL", "viewRule": "UNRESOLVED__NEEDS_EXTERNAL", "createRule": "UNRESOLVED__NEEDS_EXTERNAL", "updateRule": "UNRESOLVED__NEEDS_EXTERNAL", "deleteRule": "UNRESOLVED__NEEDS_EXTERNAL" }
+    },
+    "progress_notes": {
+      "type": "base",
+      "key_fields": {
+        "child": { "type": "relation", "collection": "children", "max_select": 1, "cascade_delete": true, "required": true },
+        "note_text": { "type": "editor" },
+        "attachment": { "type": "file", "max_select": 1, "protected": true }
+      },
+      "access_rules": {
+        "listRule": "UNRESOLVED__NEEDS_EXTERNAL__expected: child.parent = @request.auth.id",
+        "viewRule": "UNRESOLVED__NEEDS_EXTERNAL__expected: child.parent = @request.auth.id",
+        "createRule": "UNRESOLVED__NEEDS_EXTERNAL",
+        "updateRule": "UNRESOLVED__NEEDS_EXTERNAL",
+        "deleteRule": "UNRESOLVED__NEEDS_EXTERNAL"
+      },
+      "file_auth_notes": {
+        "T-FILE-AUTH-5": "DEFERRED-MANDATORY: upload test requires binary test asset",
+        "T-FILE-AUTH-7": "DEFERRED-MANDATORY: delete test depends on upload"
+      }
+    },
+    "articles": {
+      "type": "base",
+      "key_fields": {
+        "title": { "type": "text", "required": true },
+        "type": { "type": "select", "values": ["antenatal", "postnatal", "general"], "max_select": 1, "note": "antenatal = patient onboarding phase" },
+        "content": { "type": "editor" }
+      },
+      "access_rules": {
+        "listRule": "UNRESOLVED__NEEDS_EXTERNAL__expected: @request.auth.id != ''",
+        "viewRule": "UNRESOLVED__NEEDS_EXTERNAL__expected: @request.auth.id != ''",
+        "createRule": "UNRESOLVED__NEEDS_EXTERNAL__expected: @request.auth.role = 'admin'",
+        "updateRule": "UNRESOLVED__NEEDS_EXTERNAL__expected: @request.auth.role = 'admin'",
+        "deleteRule": "UNRESOLVED__NEEDS_EXTERNAL__expected: @request.auth.role = 'admin'"
+      }
+    },
+    "bookmarks": {
+      "type": "base",
+      "key_fields": {
+        "user": { "type": "relation", "collection": "users", "max_select": 1, "cascade_delete": true, "required": true },
+        "article": { "type": "relation", "collection": "articles", "max_select": 1, "cascade_delete": true, "required": true }
+      },
+      "access_rules": {
+        "listRule": "UNRESOLVED__NEEDS_EXTERNAL__expected: user = @request.auth.id",
+        "viewRule": "UNRESOLVED__NEEDS_EXTERNAL__expected: user = @request.auth.id",
+        "createRule": "UNRESOLVED__NEEDS_EXTERNAL", "updateRule": "UNRESOLVED__NEEDS_EXTERNAL", "deleteRule": "UNRESOLVED__NEEDS_EXTERNAL"
+      }
+    },
+    "notifications": {
+      "type": "base",
+      "key_fields": {
+        "user": { "type": "relation", "collection": "users", "max_select": 1, "cascade_delete": true, "required": true },
+        "message": { "type": "text", "required": true },
+        "read": { "type": "bool" }
+      },
+      "access_rules": {
+        "listRule": "UNRESOLVED__NEEDS_EXTERNAL__expected: user = @request.auth.id",
+        "viewRule": "UNRESOLVED__NEEDS_EXTERNAL__expected: user = @request.auth.id",
+        "createRule": "UNRESOLVED__NEEDS_EXTERNAL__expected: null",
+        "updateRule": "UNRESOLVED__NEEDS_EXTERNAL__expected: user = @request.auth.id",
+        "deleteRule": "UNRESOLVED__NEEDS_EXTERNAL"
+      }
+    },
+    "newborn_enrollments": {
+      "type": "base",
+      "key_fields": {
+        "child": { "type": "relation", "collection": "children", "max_select": 1, "cascade_delete": true, "required": true },
+        "course": { "type": "relation", "collection": "courses", "max_select": 1, "required": true },
+        "enrolled_at": { "type": "date" }
+      },
+      "access_rules": { "listRule": "UNRESOLVED__NEEDS_EXTERNAL", "viewRule": "UNRESOLVED__NEEDS_EXTERNAL", "createRule": "UNRESOLVED__NEEDS_EXTERNAL", "updateRule": "UNRESOLVED__NEEDS_EXTERNAL", "deleteRule": "UNRESOLVED__NEEDS_EXTERNAL" }
+    },
+    "courses": {
+      "type": "base",
+      "key_fields": {
+        "title": { "type": "text", "required": true },
+        "has_newborn_content": { "type": "bool" }
+      },
+      "access_rules": { "listRule": "UNRESOLVED__NEEDS_EXTERNAL", "viewRule": "UNRESOLVED__NEEDS_EXTERNAL", "createRule": "UNRESOLVED__NEEDS_EXTERNAL__expected: null or admin-only", "updateRule": "UNRESOLVED__NEEDS_EXTERNAL", "deleteRule": "UNRESOLVED__NEEDS_EXTERNAL" }
+    }
+  },
+  "unresolved_items": {
+    "all_rule_values": "All access rule expressions are UNRESOLVED — must be verified against actual migration JS files",
+    "email_verification_rule": "Whether authRule = 'verified = true' is set on users collection is UNRESOLVED",
+    "articles_type_values": "Exact select values for articles.type are UNRESOLVED — antenatal/postnatal/general assumed"
+  }
+}

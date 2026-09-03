@@ -1,0 +1,29 @@
+{
+  "name": "My Healthy Start · Sihat Dari Mula",
+  "short_name": "Sihat Dari Mula",
+  "description": "Your parenting companion from day one — tracking, learning, and wellbeing for Malaysian families.",
+  "start_url": "/",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#f2f0ed",
+  "theme_color": "#7c3aed",
+  "lang": "en-MY",
+  "categories": ["health", "lifestyle", "parenting"],
+  "icons": [
+    {
+      "src": "/public_3577_cc825f6beaf34dcd96d5e20559753c2b.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "/public_3577_cc825f6beaf34dcd96d5e20559753c2b.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any maskable"
+    }
+  ],
+  "screenshots": [],
+  "related_applications": [],
+  "prefer_related_applications": false
+}

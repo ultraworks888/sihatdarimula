@@ -1,0 +1,73 @@
+{
+  "manifest_version": "1",
+  "round": "14",
+  "status": "DRAFTED",
+  "description": "Hook manifest for Release 1B. All hook source paths, SHA-256 hashes, probe routes, probe methods, and expected post-removal statuses are UNRESOLVED and must be provided by operators before --run. See defect-15 and defect-16 corrections in release1b_round14_review.md.",
+  "hooks": {
+    "onboarding": {
+      "description": "Patient onboarding hook. Handles antenatal phase enrollment and routing. Defect-18 fix: this hook's route is for patient-facing onboarding flow, not a prohibited or admin route.",
+      "src_path": "UNRESOLVED__NEEDS_EXTERNAL",
+      "sha256": "UNRESOLVED__NEEDS_EXTERNAL",
+      "probe_route": "UNRESOLVED__NEEDS_EXTERNAL__e.g. /api/onboarding/enroll",
+      "probe_method": "GET",
+      "expected_status_when_loaded": "UNRESOLVED__NEEDS_EXTERNAL__e.g. 200 or 405",
+      "expected_status_after_removal": "404",
+      "removal_status_rationale": "Route is hook-exclusive; disappears when hook is removed",
+      "defect_15_note": "HOOK_PROBE_ROUTES[onboarding] must be set to the actual hook route before --run",
+      "defect_16_note": "HOOK_EXPECTED_REMOVED_STATUS[onboarding] = 404 (hook-only route)"
+    },
+    "push_broadcast": {
+      "description": "Push notification broadcast hook. Sends push notifications to users. Authorized exclusion E6: requires external push service credentials.",
+      "src_path": "UNRESOLVED__NEEDS_EXTERNAL",
+      "sha256": "UNRESOLVED__NEEDS_EXTERNAL",
+      "probe_route": "UNRESOLVED__NEEDS_EXTERNAL__e.g. /api/push/broadcast",
+      "probe_method": "POST",
+      "expected_status_when_loaded": "UNRESOLVED__NEEDS_EXTERNAL__e.g. 401 (auth required)",
+      "expected_status_after_removal": "404",
+      "removal_status_rationale": "Route is hook-exclusive; disappears when hook is removed",
+      "defect_15_note": "HOOK_PROBE_ROUTES[push_broadcast] must be set before --run",
+      "defect_16_note": "HOOK_EXPECTED_REMOVED_STATUS[push_broadcast] = 404 (hook-only route)",
+      "authorized_exclusion": "E6-PUSH-BROADCAST: external push service credentials not available in isolated harness"
+    },
+    "whatsapp": {
+      "description": "WhatsApp integration hook. Authorized exclusion E8: requires production API key.",
+      "src_path": "UNRESOLVED__NEEDS_EXTERNAL",
+      "sha256": "UNRESOLVED__NEEDS_EXTERNAL",
+      "probe_route": "UNRESOLVED__NEEDS_EXTERNAL__e.g. /api/whatsapp/send",
+      "probe_method": "POST",
+      "expected_status_when_loaded": "UNRESOLVED__NEEDS_EXTERNAL__e.g. 401",
+      "expected_status_after_removal": "404",
+      "removal_status_rationale": "Route is hook-exclusive; disappears when hook is removed",
+      "defect_15_note": "HOOK_PROBE_ROUTES[whatsapp] must be set before --run",
+      "defect_16_note": "HOOK_EXPECTED_REMOVED_STATUS[whatsapp] = 404 (hook-only route)",
+      "authorized_exclusion": "E8-WHATSAPP: production WhatsApp API key not available in isolated harness"
+    },
+    "alias_intercept": {
+      "description": "Alias account intercept hook. Intercepts auth-with-password requests for alias accounts and returns 400. This hook may share the auth route with PocketBase core, making the expected post-removal status non-trivially 404.",
+      "src_path": "UNRESOLVED__NEEDS_EXTERNAL",
+      "sha256": "UNRESOLVED__NEEDS_EXTERNAL",
+      "probe_route": "UNRESOLVED__NEEDS_EXTERNAL__likely /api/collections/users/auth-with-password",
+      "probe_method": "POST",
+      "expected_status_when_loaded": "UNRESOLVED__NEEDS_EXTERNAL__400 for alias accounts",
+      "expected_status_after_removal": "UNRESOLVED__NEEDS_EXTERNAL",
+      "removal_status_rationale": "UNRESOLVED: route may be shared with PocketBase core auth; baseline behavior after hook removal requires operator specification. Defect-16 fix: this is the interceptor case requiring non-404 baseline.",
+      "defect_15_note": "HOOK_PROBE_ROUTES[alias_intercept] must be set before --run",
+      "defect_16_note": "HOOK_EXPECTED_REMOVED_STATUS[alias_intercept] is UNRESOLVED — interceptor hooks require separate baseline verification"
+    }
+  },
+  "global_constants_required": {
+    "HOOK_SRC_PATHS": "All four keys must be set to valid file paths before --run",
+    "HOOK_EXPECTED_SHA256": "All four keys must be set to valid SHA-256 hashes before --run",
+    "HOOK_PROBE_ROUTES": "All four keys must be set; defect-28 fix enforces key-set match with HOOK_SRC_PATHS",
+    "HOOK_PROBE_METHODS": "Defaults provided in script; override as needed",
+    "HOOK_EXPECTED_REMOVED_STATUS": "onboarding/push_broadcast/whatsapp = 404 (hook-only); alias_intercept = UNRESOLVED"
+  },
+  "defect_28_requirement": "pb_check_package_completeness() verifies that HOOK_PROBE_ROUTES keys exactly match HOOK_SRC_PATHS keys. No extras, no missing. This check runs in --package-check mode.",
+  "unresolved_items": [
+    "All hook source file paths (NEEDS-EXTERNAL: operators must provide)",
+    "All hook SHA-256 hashes (NEEDS-EXTERNAL: computed from actual source files)",
+    "All probe routes (NEEDS-EXTERNAL: depends on actual hook implementation)",
+    "alias_intercept post-removal expected status (NEEDS-EXTERNAL: interceptor baseline)"
+  ],
+  "nsu_hook_behavior_note": "T-NSU-HOOK-BEHAVIOR is DEFERRED-MANDATORY (defect-17 fix). Hook source is required to define expected behavior when native superuser requests are routed through hook interceptors."
+}

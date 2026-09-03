@@ -1,0 +1,23 @@
+# WhatsApp Webhook Verification Gateway — Cloudflare Worker
+# My Healthy Start · Phase A
+#
+# SECRETS — never put these here. Set them via CLI:
+#   wrangler secret put META_APP_SECRET
+#   wrangler secret put WA_WEBHOOK_VERIFY_TOKEN
+#   wrangler secret put WA_INTERNAL_FORWARD_SECRET
+#
+# VARS — non-secret configuration below
+
+name            = "mhs-whatsapp-gateway"
+main            = "worker.js"
+compatibility_date = "2025-01-01"
+
+[vars]
+# The PocketBase endpoint that receives verified, forwarded webhook events.
+# Update this to your production site URL before deploying.
+# Example: https://vitesite-4.sg-host.com/api/whatsapp/webhook
+#
+# In Phase A this endpoint does not exist yet on PocketBase — the Worker will
+# log a forward failure and return 200 to Meta to suppress retries.
+# This is intentional. The endpoint is created in Phase B.
+POCKETBASE_WEBHOOK_URL = "https://YOUR-SITE.sg-host.com/api/whatsapp/webhook"

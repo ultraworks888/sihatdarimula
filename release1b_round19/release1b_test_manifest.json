@@ -1,0 +1,212 @@
+{
+  "manifest_version": "1",
+  "round": "19",
+  "status": "DRAFTED — statically validated",
+  "r19_changes": "Collection names corrected throughout (growth_logs, activity_logs, immunisations, enrollments). children.user field used (not children.parent). articles.category field used (not articles.type). T-SCHEMA-COL-* items corrected. T-FIELD-PHONE-REJECT and T-FIELD-ALIAS-REJECT reclassified NEEDS-EXTERNAL (fields absent). T-FILE-AUTH-1/-3/-4 redesigned to use actual collections (growth_logs replaces progress_notes). T-ART-ANON-DENIED reclassified requires-policy-decision. T-INJECT-CREATE-* group added as EMERGENCY BLOCKING. T-INJECT-VERIFY-PERSISTED added. T-OTP-FLOW updated to phone/WhatsApp. Seed credential security finding recorded (S-3).",
+  "counts": {
+    "mandatory_total": 57,
+    "mandatory_deferred_count": 13,
+    "emergency_blocking_count": 5,
+    "authorized_exclusion_count": 3,
+    "needs_policy_decision_count": 2
+  },
+  "mandatory_items": [
+    { "id": "T-SU-CREATE-AUTH",          "description": "Native superuser created and authenticated",                "stage": "infrastructure", "blocking": true },
+    { "id": "T-SU-DELETE",               "description": "Native superuser deleted during cleanup",                  "stage": "cleanup" },
+    { "id": "T-PREFLIGHT-PORTS",         "description": "Port 8090 free before start (Mailhog ports removed — OTP uses local adapter)",  "stage": "infrastructure", "blocking": true },
+    { "id": "T-SCHEMA-MIGRATIONS-COPY",  "description": "Migration files copied to isolated dir (fail-closed)",    "stage": "infrastructure" },
+
+    { "id": "T-SCHEMA-COL-users",                 "description": "users collection exists",                               "stage": "schema" },
+    { "id": "T-SCHEMA-COL-children",              "description": "children collection exists",                            "stage": "schema" },
+    { "id": "T-SCHEMA-COL-growth_logs",           "description": "growth_logs collection exists (R19: was growth_records)", "stage": "schema" },
+    { "id": "T-SCHEMA-COL-nutrition_logs",        "description": "nutrition_logs collection exists (new in R19)",           "stage": "schema" },
+    { "id": "T-SCHEMA-COL-activity_logs",         "description": "activity_logs collection exists (R19: was activities)",  "stage": "schema" },
+    { "id": "T-SCHEMA-COL-wellbeing_logs",        "description": "wellbeing_logs collection exists (new in R19)",          "stage": "schema" },
+    { "id": "T-SCHEMA-COL-immunisations",         "description": "immunisations collection exists (R19: was immunizations — British spelling)", "stage": "schema" },
+    { "id": "T-SCHEMA-COL-articles",             "description": "articles collection exists",                             "stage": "schema" },
+    { "id": "T-SCHEMA-COL-bookmarks",            "description": "bookmarks collection exists",                            "stage": "schema" },
+    { "id": "T-SCHEMA-COL-notifications",        "description": "notifications collection exists",                        "stage": "schema" },
+    { "id": "T-SCHEMA-COL-notification_preferences", "description": "notification_preferences collection exists (new in R19)", "stage": "schema" },
+    { "id": "T-SCHEMA-COL-notification_queue",   "description": "notification_queue collection exists (new in R19)",       "stage": "schema" },
+    { "id": "T-SCHEMA-COL-phone_otps",           "description": "phone_otps collection exists (new in R19)",               "stage": "schema" },
+    { "id": "T-SCHEMA-COL-push_subscriptions",   "description": "push_subscriptions collection exists (new in R19)",       "stage": "schema" },
+    { "id": "T-SCHEMA-COL-courses",             "description": "courses collection exists",                               "stage": "schema" },
+    { "id": "T-SCHEMA-COL-enrollments",         "description": "enrollments collection exists (R19: was newborn_enrollments)", "stage": "schema" },
+    { "id": "T-SCHEMA-COL-lesson_progress",     "description": "lesson_progress collection exists (new in R19)",           "stage": "schema" },
+
+    { "id": "T-SCHEMA-FIELD-CHILDREN-USER", "description": "children.user field exists (R19: R18 tested children.parent — incorrect)", "stage": "schema" },
+    { "id": "T-SCHEMA-FIELD-ART-CATEGORY",  "description": "articles.category field exists with values growth/nutrition/activity/wellbeing/immunisation/pregnancy/general (R19: R18 tested articles.type with antenatal/postnatal/general — incorrect)", "stage": "schema" },
+    { "id": "T-SCHEMA-FIELD-ART-PREGNANCY", "description": "articles.is_pregnancy bool field exists — used as antenatal gate", "stage": "schema" },
+
+    { "id": "T-HOOKDIR-VERIFY",       "description": "Hooks directory exists with 700 permissions",           "stage": "hooks" },
+
+    { "id": "T-CRUD-CH-LIST",         "description": "Authenticated user can list own children (user field)",  "stage": "crud" },
+    { "id": "T-CRUD-CH-VIEW",         "description": "Authenticated user can view own child by ID",            "stage": "crud" },
+    { "id": "T-CRUD-CH-VIEW-CROSS",   "description": "User cannot view another user's child (404)",            "stage": "crud" },
+    { "id": "T-CRUD-CH-CREATE",       "description": "Authenticated user can create child with body.user = own ID (R19: was body.parent)", "stage": "crud" },
+    { "id": "T-CRUD-CH-CREATE-CROSS", "description": "User cannot create child with body.user = other user ID (400) (R19: was body.parent)", "stage": "crud" },
+    { "id": "T-CRUD-GL-CREATE",       "description": "Authenticated user can create growth_log record (R19: collection was growth_records)", "stage": "crud" },
+
+    { "id": "T-FIELD-ROLE-REJECT",    "description": "Ordinary user PATCH self with role=admin → 403 (emergency hardening hook)", "stage": "field-protection" },
+
+    {
+      "id": "T-INJECT-CREATE-ANON-ADMIN",
+      "description": "EMERGENCY BLOCKING. Anonymous POST /api/collections/users/records with role=admin in body. Verify: (1) HTTP response is 400/403 OR (2) if 200, verify persisted role field IS NOT admin. If persisted role = admin, BLOCKING — publication must halt until createRule or hook guard is applied.",
+      "stage": "injection",
+      "emergency_blocking": true
+    },
+    {
+      "id": "T-INJECT-CREATE-ANON-SADMIN",
+      "description": "EMERGENCY BLOCKING. Anonymous POST /api/collections/users/records with role=superadmin in body. Same verification pattern as T-INJECT-CREATE-ANON-ADMIN.",
+      "stage": "injection",
+      "emergency_blocking": true
+    },
+    {
+      "id": "T-INJECT-CREATE-VERIFIED",
+      "description": "EMERGENCY BLOCKING. Anonymous POST with verified=true in body. Verify persisted record does not have verified=true.",
+      "stage": "injection",
+      "emergency_blocking": true
+    },
+    {
+      "id": "T-INJECT-CREATE-EMAIL-VIS",
+      "description": "EMERGENCY BLOCKING. Anonymous POST with emailVisibility=true in body. Verify persisted record does not expose email to other callers.",
+      "stage": "injection",
+      "emergency_blocking": true
+    },
+    {
+      "id": "T-INJECT-CREATE-UNEXPECTED",
+      "description": "EMERGENCY BLOCKING. Anonymous POST with unexpected fields (phone_verified, is_alias_account, tokenKey, passwordHash). Verify none are stored. Fields absent from schema should be silently ignored; verify behavior.",
+      "stage": "injection",
+      "emergency_blocking": true
+    },
+    {
+      "id": "T-INJECT-VERIFY-PERSISTED",
+      "description": "After each T-INJECT-CREATE-* test, native superuser reads the created record and verifies: role='' or role='user' (not admin/superadmin), verified=false, role injection rejected at database level not just HTTP response level.",
+      "stage": "injection"
+    },
+
+    { "id": "T-FILE-AUTH-1",          "description": "Anonymous cannot list growth_logs records (401/403) — replaces T-FILE-AUTH-1 which used absent progress_notes collection", "stage": "file-auth" },
+    { "id": "T-FILE-AUTH-2",          "description": "Authenticated user can list own growth_logs records (200)", "stage": "file-auth" },
+    { "id": "T-FILE-AUTH-3",          "description": "Cross-user growth_logs filter returns empty (user isolation)", "stage": "file-auth" },
+    { "id": "T-FILE-AUTH-4",          "description": "Admin can list all growth_logs records (200)",              "stage": "file-auth" },
+    { "id": "T-FILE-AUTH-6",          "description": "Protected avatar file URL without token returns 403/404",   "stage": "file-auth" },
+
+    { "id": "T-ALIAS-ENUM-1",         "description": "Auth wrong-pw for existing user returns 400",              "stage": "alias-enum" },
+    { "id": "T-ALIAS-ENUM-2",         "description": "Auth wrong-pw for existing user (second) returns 400",     "stage": "alias-enum" },
+    { "id": "T-ALIAS-ENUM-3",         "description": "Auth nonexistent email returns 400",                        "stage": "alias-enum" },
+    { "id": "T-ALIAS-ENUM-4",         "description": "Auth malformed email returns 400",                          "stage": "alias-enum" },
+    { "id": "T-ALIAS-CASE5-TIMING",   "description": "Timing analysis: wrong-pw response time consistent across user/non-user", "stage": "alias-enum" },
+
+    { "id": "T-ACTOR-ROLE-RULE",      "description": "Role escalation rejected on PATCH (defect-27, emergency_hardening hook, 403)", "stage": "auth" },
+    { "id": "T-ANON-READ",            "description": "Anonymous cannot read users collection (401/403)",          "stage": "auth" },
+    { "id": "T-AUTH-NO-OTHERS-READ",  "description": "User cannot view another user's record (404)",             "stage": "auth" },
+    { "id": "T-ADMIN-ESCALATION",     "description": "Admin cannot promote self to superadmin via PATCH (403)",  "stage": "admin" },
+    { "id": "T-ADMIN-NO-PROMOTE",     "description": "Admin cannot promote another user via PATCH (403)",        "stage": "admin" },
+    { "id": "T-SADMIN-LIST-USERS",    "description": "Superadmin can list all users (200)",                      "stage": "admin" },
+    { "id": "T-NSU-BYPASS",           "description": "Native superuser bypasses collection rules (200)",          "stage": "admin" },
+
+    { "id": "T-USER-NAME-UPDATE",     "description": "Ordinary user can update own name (200)",                   "stage": "user-ops" },
+    { "id": "T-USER-LANG-UPDATE",     "description": "Ordinary user can update own language (200)",               "stage": "user-ops" },
+    { "id": "T-USER-PHONE-UPDATE",    "description": "Ordinary user can update own phone field (200) — phone field exists in schema", "stage": "user-ops" },
+
+    {
+      "id": "T-ART-ANTENATAL-VIS",
+      "description": "Articles with is_pregnancy=true and category=pregnancy are listed and readable. Seeded articles are checked for presence. Authenticated user sees these articles.",
+      "stage": "content"
+    },
+    {
+      "id": "T-ART-CATEGORY-FILTER",
+      "description": "Articles can be filtered by category=pregnancy to isolate antenatal content. Verifies server-side category filter works correctly.",
+      "stage": "content"
+    },
+    {
+      "id": "T-ART-ANON-POLICY",
+      "description": "POLICY DECISION REQUIRED — currently articles.listRule='' makes all articles publicly readable. Test verifies current behavior (200 for anonymous). Score as PASS-NOTED if public access is the intended policy, or BLOCKING if authentication is required per release policy. Operator must confirm intended policy before scoring.",
+      "stage": "content",
+      "requires_policy_decision": true
+    },
+
+    { "id": "T-API-DECLARATIONS",       "description": "API route semantics verified — resolved routes confirmed",   "stage": "api" },
+    { "id": "T-STATIC-ROUTE-INVENTORY", "description": "Health endpoint responds; auth-methods endpoint responds",   "stage": "api" },
+    { "id": "T-RULE-APPLY-RESTORE",     "description": "Apply rule change, verify, restore, verify restoration",    "stage": "rules" },
+    {
+      "id": "T-CONCURRENCY-AUTH",
+      "description": "Concurrent wrong-password auth attempts all return 400. Pre-worker setup validated with t_harness_err on helper exit-status failure. Per-worker isolated directories. Defect-23 AUTH component: IMPL.",
+      "stage": "concurrency"
+    },
+    {
+      "id": "T-NSU-HOOK-BEHAVIOR",
+      "description": "Native superuser PATCH to users with role in body. Verifies: emergency_hardening hook's _superusers bypass path works on v0.29.3 (e.auth.collection().name === '_superusers'). If bypass fails, hook blocks NSU and CLEANUP_FAILURE=1.",
+      "stage": "admin"
+    }
+  ],
+  "mandatory_deferred_items": [
+    {
+      "id": "T-FIELD-PHONE-REJECT",
+      "description": "RECLASSIFIED NEEDS-EXTERNAL in R19. Field phone_verified is absent from users schema (S-2). Cannot test until field is added. When added: ordinary user PATCH self with phone_verified=true should be rejected.",
+      "reason": "phone_verified field absent from users schema — NEEDS-EXTERNAL"
+    },
+    {
+      "id": "T-FIELD-ALIAS-REJECT",
+      "description": "RECLASSIFIED NEEDS-EXTERNAL in R19. Field is_alias_account is absent from users schema (S-2). Cannot test until field is added.",
+      "reason": "is_alias_account field absent from users schema — NEEDS-EXTERNAL"
+    },
+    { "id": "T-FILE-AUTH-5", "description": "User can upload file (avatar). Requires binary test asset.", "reason": "Binary image asset NEEDS-EXTERNAL" },
+    { "id": "T-FILE-AUTH-7", "description": "User can delete own file attachment.", "reason": "Depends on T-FILE-AUTH-5 NEEDS-EXTERNAL" },
+    { "id": "T-EMAIL-LIFECYCLE",   "description": "Complete email verification lifecycle",   "reason": "Requires Mailhog or SMTP fixture" },
+    { "id": "T-EMAIL-VERIFY-REQ",  "description": "Email verification for protected resource", "reason": "Requires Mailhog or SMTP fixture" },
+    { "id": "T-EMAIL-CHANGE-FLOW", "description": "Email change flow and token delivery",    "reason": "Requires Mailhog or SMTP fixture" },
+    { "id": "T-AVATAR-LIFECYCLE",  "description": "Avatar upload and deletion lifecycle",   "reason": "Binary image asset NEEDS-EXTERNAL" },
+    { "id": "T-PROXY-IP-INVESTIGATE", "description": "Proxy IP pass-through investigation", "reason": "External network fixture NEEDS-EXTERNAL" },
+    {
+      "id": "T-CONCURRENCY-OTP-SEND",
+      "description": "Concurrent phone/WhatsApp OTP-send requests with rate-limit invariant verification. HOOK_OTP_PHONE_ROUTE is now RESOLVED (/api/auth/request-whatsapp-otp). HOOK_OTP_MOCK_CONTROL_ROUTE is DESIGNED (/api/test/otp-control) but requires operator deployment of local OTP adapter (release1b_otp_test_adapter.pb.js). Rate-limit invariants are NEEDS-EXTERNAL (production hook has no rate limit). Defect-23 OTP component: IMPL-MD.",
+      "reason": "OTP test adapter deployment NEEDS-EXTERNAL; rate-limit invariants NEEDS-EXTERNAL"
+    },
+    {
+      "id": "T-OTP-FLOW",
+      "description": "Phone/WhatsApp OTP request and verify flow. Uses local OTP adapter (never real Meta API). Flow: POST /api/auth/request-whatsapp-otp → read OTP from phone_otps via NSU token → POST /api/auth/verify-whatsapp-otp → verify 200. Deferred until local adapter deployed.",
+      "reason": "Requires local OTP adapter deployment. Replaces R18 email-OTP/Mailhog assumption."
+    },
+    {
+      "id": "T-CONCURRENCY-IDEMPOTENCY-POST",
+      "description": "Concurrent POST to idempotency-enforcing endpoint. MANDATORY-DEFERRED and IMPLEMENTATION INCOMPLETE — no idempotency-enforcing hook identified in pb_hooks/ during static inspection. Defect-23 idempotency component: IMPL-MD.",
+      "reason": "Endpoint route, idempotency key header, expected behavior NEEDS-EXTERNAL; no hook identified"
+    },
+    { "id": "T-HOOK-SMOKE-*",   "description": "Hook smoke matrix for HOOK_SRC_PATHS hooks", "reason": "HOOK_SRC_PATHS absolute paths NEEDS-EXTERNAL (operator sets before --run)" },
+    { "id": "T-PKG-ARCHIVE-HASH", "description": "PocketBase v0.29.3 archive hash verification", "reason": "PB_EXPECTED_SHA256 NEEDS-EXTERNAL — depends on whether GitHub publishes authoritative checksum" }
+  ],
+  "authorized_exclusions": [
+    { "id": "E4-EMAIL-CHANGE-LIFECYCLE", "description": "Production email-change lifecycle diagnostic", "reason": "Requires production SMTP and verified-email state" },
+    { "id": "E6-OTP-REACHABILITY",       "description": "Production OTP endpoint reachability",        "reason": "Requires Meta Cloud API credentials" },
+    { "id": "E8-WARN-LOG-OBSERVABILITY", "description": "Production WARN-log observability",           "reason": "Requires production log aggregation pipeline" }
+  ],
+  "removed_items": {
+    "T-SCHEMA-COL-growth_records": "Removed — collection does not exist. Replaced by T-SCHEMA-COL-growth_logs.",
+    "T-SCHEMA-COL-activities": "Removed — collection does not exist. Replaced by T-SCHEMA-COL-activity_logs.",
+    "T-SCHEMA-COL-immunizations": "Removed — collection does not exist. Replaced by T-SCHEMA-COL-immunisations (British spelling).",
+    "T-SCHEMA-COL-progress_notes": "Removed — collection does not exist in any migration file.",
+    "T-SCHEMA-COL-newborn_enrollments": "Removed — collection does not exist. Replaced by T-SCHEMA-COL-enrollments.",
+    "T-ANON-INJECT_as_single_test": "Replaced by T-INJECT-CREATE-ANON-ADMIN, T-INJECT-CREATE-ANON-SADMIN, T-INJECT-CREATE-VERIFIED, T-INJECT-CREATE-EMAIL-VIS, T-INJECT-CREATE-UNEXPECTED — each with persisted-record verification.",
+    "T-ART-ANON-DENIED": "Removed as a scored test — articles are currently publicly readable. Replaced by T-ART-ANON-POLICY (policy decision required before scoring)."
+  },
+  "antenatal_only_requirement": {
+    "status": "PARTIALLY ADDRESSABLE — requires policy decision",
+    "observations": [
+      "articles.is_pregnancy = true identifies antenatal/pregnancy content",
+      "articles.category = 'pregnancy' identifies pregnancy articles",
+      "Non-pregnancy article categories: growth, nutrition, activity, wellbeing, immunisation, general — these are postnatal-oriented",
+      "Current listRule='' means all articles are accessible to all callers including anonymous",
+      "Server-side restriction of postnatal content to authenticated+postnatal-eligible users requires a rule change",
+      "courses with category='pregnancy' are accessible only if is_published=true",
+      "No server-side rule currently enforces antenatal-only access"
+    ],
+    "tests_requiring_policy": ["T-ART-ANON-POLICY", "T-ART-CATEGORY-FILTER"],
+    "tests_blocked": "T-ART-ANTENATAL-VIS can proceed (verifies pregnancy articles visible to authenticated users)"
+  },
+  "final_result_states": {
+    "FAIL_rc_1":       "T_BLOCKING > 0 OR T_FAIL > 0 OR T_HARNESS_ERR > 0 OR CLEANUP_FAILURE > 0. NOTE: Any T-INJECT-CREATE-* emergency blocking failure produces FAIL immediately.",
+    "INCOMPLETE_rc_2": "No failures but T_DEFERRED > 0 OR T_UNRESOLVED > 0 OR policy decisions outstanding. Cannot support Checkpoint 0 authorization.",
+    "PASS_rc_0":       "No failures, no mandatory gaps, all policy decisions resolved."
+  }
+}

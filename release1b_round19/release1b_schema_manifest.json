@@ -1,0 +1,417 @@
+{
+  "manifest_version": "1",
+  "round": "19",
+  "status": "DRAFTED — statically validated against migration sources and Coderick workspace schema tool",
+  "basis": "Fully rewritten in R19. All collection names, field names, and access rules are now sourced from authoritative project migration files. Speculative names (growth_records, activities, immunizations, progress_notes, newborn_enrollments) removed. UNRESOLVED markers retained only where genuine ambiguity or policy decision remains.",
+  "inspection_provenance": {
+    "source_type": "Coderick-managed workspace PocketBase",
+    "pb_version_inspected": "0.28.4 (Coderick platform version)",
+    "pb_version_target": "0.29.3 (production)",
+    "schema_population_method": "Migration files in pb_migrations/ applied in filename order by the Coderick-managed PocketBase instance",
+    "relationship_to_production": "Schema reflects the same migration files that would be applied to an isolated v0.29.3 instance. Whether v0.28.4 migration application is identical to v0.29.3 for every migration construct is NOT established. v0.29.3 JSVM and collection-engine differences are unverified.",
+    "production_host": "app.sihatdarimula.my — NOT contacted. No request reached production.",
+    "caveat": "Findings from this inspection are SCHEMA-LEVEL findings only. No runtime behavior, HTTP responses, or rule enforcement were observed. Behavioral predictions must be verified on an isolated v0.29.3 instance."
+  },
+  "security_findings": {
+    "S-1": {
+      "title": "Role Injection on Create — users.createRule is public",
+      "severity": "HIGH",
+      "source": "Migration 1782897956_add_admin_roles_and_permissions_8689.js does not restrict createRule",
+      "finding": "users.createRule = \"\" (public). The emergency_users_hardening.pb.js hook intercepts only onRecordUpdateRequest, not create. A registration POST body containing role=admin or role=superadmin may be stored as-is. This must be verified by T-INJECT-CREATE-ANON-ADMIN before any public access is permitted.",
+      "status": "UNVERIFIED — requires T-INJECT-CREATE-ANON-ADMIN on isolated v0.29.3",
+      "action_required": "Run emergency blocking test group on isolated instance. If role injection on create is confirmed, block publication until createRule or hook guard is applied."
+    },
+    "S-2": {
+      "title": "phone_verified and is_alias_account absent from users schema",
+      "severity": "MEDIUM",
+      "source": "pb_get_schema and all migration files inspected",
+      "finding": "Fields phone_verified and is_alias_account are not present in the users collection. Tests T-FIELD-PHONE-REJECT and T-FIELD-ALIAS-REJECT cannot be executed as designed. Whether production requires these fields is NEEDS-EXTERNAL.",
+      "status": "SCHEMA-GAP — operator must clarify whether these fields are planned, removed, or never intended"
+    },
+    "S-3": {
+      "title": "Hardcoded plaintext credential in committed migration",
+      "severity": "CRITICAL",
+      "source": "pb_migrations/1782898775_seed_superadmin_user_4fd7.js",
+      "finding": "The seed migration sets email sdmadmin@ultra.works with a plaintext password visible in the migration file. If this migration was applied to production and the password was not rotated, the credential is fully exposed to anyone with repository access. The harness MUST NOT use this credential. The operator must rotate it immediately if production is affected.",
+      "status": "OPERATOR ACTION REQUIRED — verify production credential is rotated; confirm migration was not applied to production database with this password intact",
+      "harness_note": "The harness creates all test credentials via openssl rand. It never reads, uses, or references sdmadmin@ultra.works or its password. The isolated database starts fresh and this seeded user exists in isolation only for the duration of the harness run."
+    }
+  },
+  "collections": {
+    "users": {
+      "type": "auth",
+      "source_migrations": [
+        "baseline: PocketBase built-in users auth collection",
+        "1782833823_init_mamacare_schema_e6ce.js — adds name (text, max 200)",
+        "1782864178_add_i18n_phone_and_article_translations_c927.js — adds phone (text, max 20), language (select: en/ms/zh)",
+        "1782897956_add_admin_roles_and_permissions_8689.js — adds role (select: user/admin/superadmin), updates listRule/viewRule/updateRule/deleteRule"
+      ],
+      "key_fields": {
+        "name": { "type": "text", "max": 200 },
+        "avatar": { "type": "file", "max_select": 1, "mime_types": ["image/jpeg","image/png","image/svg+xml","image/gif","image/webp"] },
+        "phone": { "type": "text", "max": 20 },
+        "language": { "type": "select", "values": ["en","ms","zh"], "max_select": 1 },
+        "role": { "type": "select", "values": ["user","admin","superadmin"], "max_select": 1 },
+        "phone_verified": { "type": "ABSENT", "note": "S-2: not present in schema. Tests depending on this field must be deferred." },
+        "is_alias_account": { "type": "ABSENT", "note": "S-2: not present in schema. Tests depending on this field must be deferred." }
+      },
+      "access_rules": {
+        "listRule": "id = @request.auth.id || @request.auth.role = 'admin' || @request.auth.role = 'superadmin'",
+        "viewRule": "id = @request.auth.id || @request.auth.role = 'admin' || @request.auth.role = 'superadmin'",
+        "createRule": "\"\" (public — ANY caller may register)",
+        "updateRule": "id = @request.auth.id || @request.auth.role = 'superadmin'",
+        "deleteRule": "id = @request.auth.id || @request.auth.role = 'superadmin'"
+      },
+      "field_protection_requirements": {
+        "role": "Must not be settable by ordinary user or anonymous caller. createRule gap means create path must be verified by T-INJECT-CREATE-ANON-ADMIN.",
+        "phone_verified": "FIELD ABSENT — policy requirement cannot be enforced until field is added",
+        "is_alias_account": "FIELD ABSENT — policy requirement cannot be enforced until field is added"
+      },
+      "r19_notes": [
+        "createRule = empty string is a security gap for role injection (S-1)",
+        "R18 assumed children.parent — actual relation field is children.user (corrected throughout)"
+      ]
+    },
+    "children": {
+      "type": "base",
+      "source_migration": "1782833823_init_mamacare_schema_e6ce.js",
+      "key_fields": {
+        "user": { "type": "relation", "collection": "users", "max_select": 1, "cascade_delete": true, "required": true, "note": "R19 CORRECTION: R18 used 'parent' — actual field name is 'user'" },
+        "name": { "type": "text", "required": true, "max": 100 },
+        "date_of_birth": { "type": "date" },
+        "due_date": { "type": "date" },
+        "gender": { "type": "select", "values": ["boy","girl","other"], "max_select": 1 },
+        "is_born": { "type": "bool" }
+      },
+      "access_rules": {
+        "listRule": "user = @request.auth.id || @request.auth.role = 'admin' || @request.auth.role = 'superadmin'",
+        "viewRule": "user = @request.auth.id || @request.auth.role = 'admin' || @request.auth.role = 'superadmin'",
+        "createRule": "@request.auth.id != '' && @request.body.user = @request.auth.id",
+        "updateRule": "user = @request.auth.id",
+        "deleteRule": "user = @request.auth.id"
+      }
+    },
+    "growth_logs": {
+      "type": "base",
+      "r19_correction": "R18 used name 'growth_records' — actual name is 'growth_logs'",
+      "source_migration": "1782833823_init_mamacare_schema_e6ce.js",
+      "key_fields": {
+        "user": { "type": "relation", "collection": "users", "required": true, "max_select": 1, "cascade_delete": true },
+        "child": { "type": "relation", "collection": "children", "required": true, "max_select": 1, "cascade_delete": true },
+        "date": { "type": "date", "required": true },
+        "weight_kg": { "type": "number" },
+        "height_cm": { "type": "number" },
+        "head_cm": { "type": "number" }
+      },
+      "access_rules": {
+        "listRule": "user = @request.auth.id || @request.auth.role = 'admin' || @request.auth.role = 'superadmin'",
+        "viewRule": "user = @request.auth.id",
+        "createRule": "@request.auth.id != '' && @request.body.user = @request.auth.id",
+        "updateRule": "user = @request.auth.id",
+        "deleteRule": "user = @request.auth.id"
+      }
+    },
+    "nutrition_logs": {
+      "type": "base",
+      "r19_note": "NEW in R19 — absent from R18 schema manifest",
+      "source_migration": "1782833823_init_mamacare_schema_e6ce.js",
+      "key_fields": {
+        "user": { "type": "relation", "collection": "users", "required": true, "max_select": 1, "cascade_delete": true },
+        "child": { "type": "relation", "collection": "children", "required": true, "max_select": 1, "cascade_delete": true },
+        "date": { "type": "date", "required": true },
+        "type": { "type": "select", "required": true, "values": ["breastfeed","formula","solid","prenatal_diet"], "max_select": 1 },
+        "duration_min": { "type": "number" },
+        "volume_ml": { "type": "number" },
+        "food_name": { "type": "text", "max": 200 },
+        "notes": { "type": "text", "max": 1000 }
+      },
+      "access_rules": {
+        "listRule": "user = @request.auth.id",
+        "viewRule": "user = @request.auth.id",
+        "createRule": "@request.auth.id != '' && @request.body.user = @request.auth.id",
+        "updateRule": "user = @request.auth.id",
+        "deleteRule": "user = @request.auth.id"
+      }
+    },
+    "activity_logs": {
+      "type": "base",
+      "r19_correction": "R18 used name 'activities' — actual name is 'activity_logs'",
+      "source_migration": "1782833823_init_mamacare_schema_e6ce.js",
+      "key_fields": {
+        "user": { "type": "relation", "collection": "users", "required": true, "max_select": 1, "cascade_delete": true },
+        "child": { "type": "relation", "collection": "children", "required": true, "max_select": 1, "cascade_delete": true },
+        "date": { "type": "date", "required": true },
+        "type": { "type": "select", "required": true, "values": ["tummy_time","milestone","playtime"], "max_select": 1 },
+        "duration_min": { "type": "number" },
+        "milestone_name": { "type": "text", "max": 200 },
+        "notes": { "type": "text", "max": 1000 }
+      },
+      "access_rules": {
+        "listRule": "user = @request.auth.id",
+        "viewRule": "user = @request.auth.id",
+        "createRule": "@request.auth.id != '' && @request.body.user = @request.auth.id",
+        "updateRule": "user = @request.auth.id",
+        "deleteRule": "user = @request.auth.id"
+      }
+    },
+    "wellbeing_logs": {
+      "type": "base",
+      "r19_note": "NEW in R19 — absent from R18 schema manifest",
+      "source_migration": "1782833823_init_mamacare_schema_e6ce.js",
+      "key_fields": {
+        "user": { "type": "relation", "collection": "users", "required": true, "max_select": 1, "cascade_delete": true },
+        "date": { "type": "date", "required": true },
+        "mood_score": { "type": "number" },
+        "epds_score": { "type": "number" },
+        "type": { "type": "select", "required": true, "values": ["mood","epds"], "max_select": 1 },
+        "notes": { "type": "text", "max": 2000 }
+      },
+      "access_rules": {
+        "listRule": "user = @request.auth.id",
+        "viewRule": "user = @request.auth.id",
+        "createRule": "@request.auth.id != '' && @request.body.user = @request.auth.id",
+        "updateRule": "user = @request.auth.id",
+        "deleteRule": "user = @request.auth.id"
+      }
+    },
+    "immunisations": {
+      "type": "base",
+      "r19_correction": "R18 used name 'immunizations' (American spelling) — actual name is 'immunisations' (British spelling as in migration file)",
+      "source_migration": "1782833823_init_mamacare_schema_e6ce.js",
+      "key_fields": {
+        "user": { "type": "relation", "collection": "users", "required": true, "max_select": 1, "cascade_delete": true },
+        "child": { "type": "relation", "collection": "children", "required": true, "max_select": 1, "cascade_delete": true },
+        "vaccine_name": { "type": "text", "required": true, "max": 200 },
+        "age_months": { "type": "number" },
+        "is_completed": { "type": "bool" },
+        "completed_date": { "type": "date" },
+        "notes": { "type": "text", "max": 500 }
+      },
+      "access_rules": {
+        "listRule": "user = @request.auth.id",
+        "viewRule": "user = @request.auth.id",
+        "createRule": "@request.auth.id != '' && @request.body.user = @request.auth.id",
+        "updateRule": "user = @request.auth.id",
+        "deleteRule": "user = @request.auth.id"
+      }
+    },
+    "articles": {
+      "type": "base",
+      "source_migrations": [
+        "1782833823_init_mamacare_schema_e6ce.js — base fields",
+        "1782897956_add_admin_roles_and_permissions_8689.js — createRule/updateRule/deleteRule restricted to admin+",
+        "1782864178_add_i18n_phone_and_article_translations_c927.js — adds title_ms, summary_ms, content_ms, title_zh, summary_zh, content_zh",
+        "1782900966_add_youtube_url_to_articles_9bc1.js — adds youtube_url"
+      ],
+      "key_fields": {
+        "title": { "type": "text", "required": true, "max": 300 },
+        "summary": { "type": "text", "max": 500 },
+        "content": { "type": "editor" },
+        "category": {
+          "type": "select",
+          "required": true,
+          "values": ["growth","nutrition","activity","wellbeing","immunisation","pregnancy","general"],
+          "max_select": 1,
+          "r19_correction": "R18 assumed a 'type' field with values antenatal/postnatal/general. Actual field is 'category' with the above values. Antenatal content is identified by category='pregnancy' and/or is_pregnancy=true."
+        },
+        "min_age_months": { "type": "number" },
+        "max_age_months": { "type": "number" },
+        "is_pregnancy": { "type": "bool", "note": "TRUE = pregnancy/antenatal content; FALSE = postnatal or general. This is the server-side antenatal gate field." },
+        "reading_time": { "type": "text", "max": 20 },
+        "youtube_url": { "type": "text", "max": 300 },
+        "title_ms": { "type": "text", "max": 300 },
+        "summary_ms": { "type": "text", "max": 500 },
+        "content_ms": { "type": "editor" },
+        "title_zh": { "type": "text", "max": 300 },
+        "summary_zh": { "type": "text", "max": 500 },
+        "content_zh": { "type": "editor" }
+      },
+      "access_rules": {
+        "listRule": "\"\" (public — any caller including anonymous may list and view articles)",
+        "viewRule": "\"\" (public)",
+        "createRule": "@request.auth.role = 'admin' || @request.auth.role = 'superadmin'",
+        "updateRule": "@request.auth.role = 'admin' || @request.auth.role = 'superadmin'",
+        "deleteRule": "@request.auth.role = 'admin' || @request.auth.role = 'superadmin'"
+      },
+      "antenatal_only_requirement": {
+        "status": "POLICY DECISION REQUIRED",
+        "finding": "The current listRule and viewRule are public (\"\"). All articles including category=growth, category=nutrition etc. are visible to anonymous callers. The release policy states antenatal-only access during the onboarding phase — but the schema does not enforce this server-side.",
+        "test_scope": "T-ART-ANON-DENIED must be reclassified: the schema observation is that anonymous access returns 200, not 401/403. Whether this is correct policy is NEEDS-EXTERNAL.",
+        "antenatal_gating_options": [
+          "Option A: Set listRule = '@request.auth.id != ''' — require authentication for all articles",
+          "Option B: Set listRule = 'is_pregnancy = true || @request.auth.id != ''' — antenatal public, postnatal auth-required",
+          "Option C: Keep current open rule and gate category display in the frontend only (server does NOT enforce)"
+        ],
+        "operator_decision_required": "Which option is the intended release policy must be confirmed before T-ART-ANON-DENIED can be scored"
+      }
+    },
+    "bookmarks": {
+      "type": "base",
+      "source_migration": "1782833823_init_mamacare_schema_e6ce.js",
+      "key_fields": {
+        "user": { "type": "relation", "collection": "users", "required": true, "max_select": 1, "cascade_delete": true },
+        "article": { "type": "relation", "collection": "articles", "required": true, "max_select": 1, "cascade_delete": true }
+      },
+      "access_rules": {
+        "listRule": "user = @request.auth.id",
+        "viewRule": "user = @request.auth.id",
+        "createRule": "@request.auth.id != '' && @request.body.user = @request.auth.id",
+        "updateRule": "null (locked)",
+        "deleteRule": "user = @request.auth.id"
+      }
+    },
+    "notifications": {
+      "type": "base",
+      "source_migration": "1782886006_add_notification_preferences_and_queue_9506.js",
+      "key_fields": {
+        "user": { "type": "relation", "collection": "users", "required": true, "max_select": 1, "cascade_delete": true },
+        "child": { "type": "relation", "collection": "children", "max_select": 1, "cascade_delete": true },
+        "type": { "type": "select", "required": true, "values": ["vaccine_reminder","content_update","growth_reminder","feeding_reminder","system"], "max_select": 1 },
+        "title": { "type": "text", "required": true, "max": 300 },
+        "message": { "type": "text", "required": true, "max": 2000 },
+        "is_read": { "type": "bool" }
+      },
+      "access_rules": {
+        "listRule": "user = @request.auth.id",
+        "viewRule": "user = @request.auth.id",
+        "createRule": "null (locked — hook-only)",
+        "updateRule": "user = @request.auth.id",
+        "deleteRule": "user = @request.auth.id"
+      }
+    },
+    "notification_preferences": {
+      "type": "base",
+      "source_migration": "1782886006_add_notification_preferences_and_queue_9506.js",
+      "key_fields": {
+        "user": { "type": "relation", "collection": "users", "required": true, "max_select": 1, "cascade_delete": true },
+        "sms_enabled": { "type": "bool" },
+        "whatsapp_enabled": { "type": "bool" },
+        "in_app_enabled": { "type": "bool" },
+        "push_enabled": { "type": "bool" },
+        "vaccine_reminders": { "type": "bool" },
+        "content_updates": { "type": "bool" },
+        "growth_reminders": { "type": "bool" },
+        "feeding_reminders": { "type": "bool" }
+      },
+      "access_rules": {
+        "listRule": "user = @request.auth.id",
+        "viewRule": "user = @request.auth.id",
+        "createRule": "@request.auth.id != '' && @request.body.user = @request.auth.id",
+        "updateRule": "user = @request.auth.id",
+        "deleteRule": "null (locked)"
+      }
+    },
+    "notification_queue": {
+      "type": "base",
+      "source_migration": "1782886006_add_notification_preferences_and_queue_9506.js (initial null rules); 1782886798_allow_user_read_notification_queue_120d.js (updated listRule/viewRule); 1782897956 (updated to admin/superadmin)",
+      "access_rules": {
+        "listRule": "user = @request.auth.id || @request.auth.role = 'admin' || @request.auth.role = 'superadmin'",
+        "viewRule": "user = @request.auth.id || @request.auth.role = 'admin' || @request.auth.role = 'superadmin'",
+        "createRule": "null (locked — hook-only)",
+        "updateRule": "null (locked — hook-only)",
+        "deleteRule": "null (locked — hook-only)"
+      }
+    },
+    "phone_otps": {
+      "type": "base",
+      "source_migration": "1783946967_add_phone_otps_d039.js",
+      "key_fields": {
+        "phone": { "type": "text", "required": true, "max": 20 },
+        "code": { "type": "text", "required": true, "max": 10 },
+        "expires_at": { "type": "date" },
+        "is_used": { "type": "bool" }
+      },
+      "access_rules": {
+        "listRule": "null (locked — superuser only)",
+        "viewRule": "null (locked — superuser only)",
+        "createRule": "null (locked — hook-only)",
+        "updateRule": "null (locked — hook-only)",
+        "deleteRule": "null (locked — hook-only)"
+      },
+      "harness_note": "phone_otps is fully locked. The harness native superuser can query it to retrieve OTP codes in the isolated environment, enabling OTP flow verification without a live WhatsApp delivery."
+    },
+    "push_subscriptions": {
+      "type": "base",
+      "source_migration": "1782901681_create_push_subscriptions_6151.js",
+      "access_rules": {
+        "listRule": "user = @request.auth.id || @request.auth.role = 'admin' || @request.auth.role = 'superadmin'",
+        "viewRule": "user = @request.auth.id || @request.auth.role = 'admin' || @request.auth.role = 'superadmin'",
+        "createRule": "@request.auth.id != '' && @request.body.user = @request.auth.id",
+        "updateRule": "null (locked)",
+        "deleteRule": "user = @request.auth.id"
+      }
+    },
+    "courses": {
+      "type": "base",
+      "source_migration": "1783841601_create_lms_collections_1d3e.js",
+      "r19_correction": "R18 assumed 'title' field — actual field is 'title_en'. Also: R18 assumed 'has_newborn_content' bool — not present in schema. Actual category values are parenting/nutrition/development/wellbeing/breastfeeding/pregnancy.",
+      "key_fields": {
+        "title_en": { "type": "text", "required": true, "max": 200 },
+        "title_ms": { "type": "text", "max": 200 },
+        "title_zh": { "type": "text", "max": 200 },
+        "category": { "type": "select", "values": ["parenting","nutrition","development","wellbeing","breastfeeding","pregnancy"], "max_select": 1 },
+        "level": { "type": "select", "values": ["beginner","intermediate","advanced"], "max_select": 1 },
+        "is_published": { "type": "bool" },
+        "is_featured": { "type": "bool" },
+        "has_modules": { "type": "bool" }
+      },
+      "access_rules": {
+        "listRule": "is_published = true || @request.auth.role = 'admin' || @request.auth.role = 'superadmin'",
+        "viewRule": "is_published = true || @request.auth.role = 'admin' || @request.auth.role = 'superadmin'",
+        "createRule": "@request.auth.role = 'admin' || @request.auth.role = 'superadmin'",
+        "updateRule": "@request.auth.role = 'admin' || @request.auth.role = 'superadmin'",
+        "deleteRule": "@request.auth.role = 'superadmin'"
+      }
+    },
+    "enrollments": {
+      "type": "base",
+      "r19_correction": "R18 used name 'newborn_enrollments' — actual name is 'enrollments'. Also: no 'child' or 'enrolled_at' field; actual fields are user+course+progress.",
+      "source_migration": "1783841601_create_lms_collections_1d3e.js",
+      "key_fields": {
+        "user": { "type": "relation", "collection": "users", "required": true, "max_select": 1, "cascade_delete": true },
+        "course": { "type": "relation", "collection": "courses", "required": true, "max_select": 1, "cascade_delete": true },
+        "progress_percent": { "type": "number" },
+        "is_completed": { "type": "bool" },
+        "completed_at": { "type": "date" }
+      },
+      "access_rules": {
+        "listRule": "user = @request.auth.id || @request.auth.role = 'admin' || @request.auth.role = 'superadmin'",
+        "viewRule": "user = @request.auth.id || @request.auth.role = 'admin' || @request.auth.role = 'superadmin'",
+        "createRule": "@request.auth.id != '' && @request.body.user = @request.auth.id",
+        "updateRule": "user = @request.auth.id || @request.auth.role = 'admin' || @request.auth.role = 'superadmin'",
+        "deleteRule": "user = @request.auth.id || @request.auth.role = 'superadmin'"
+      }
+    },
+    "lesson_progress": {
+      "type": "base",
+      "source_migration": "1783841601_create_lms_collections_1d3e.js",
+      "key_fields": {
+        "user": { "type": "relation", "collection": "users", "required": true, "max_select": 1, "cascade_delete": true },
+        "lesson": { "type": "relation", "collection": "lessons", "required": true, "max_select": 1, "cascade_delete": true },
+        "course": { "type": "relation", "collection": "courses", "required": true, "max_select": 1, "cascade_delete": true },
+        "watch_percent": { "type": "number" },
+        "is_video_complete": { "type": "bool" },
+        "is_quiz_passed": { "type": "bool" },
+        "is_completed": { "type": "bool" }
+      },
+      "access_rules": {
+        "listRule": "user = @request.auth.id || @request.auth.role = 'admin' || @request.auth.role = 'superadmin'",
+        "viewRule": "user = @request.auth.id || @request.auth.role = 'admin' || @request.auth.role = 'superadmin'",
+        "createRule": "@request.auth.id != '' && @request.body.user = @request.auth.id",
+        "updateRule": "user = @request.auth.id || @request.auth.role = 'admin' || @request.auth.role = 'superadmin'",
+        "deleteRule": "user = @request.auth.id || @request.auth.role = 'superadmin'"
+      }
+    },
+    "absent_from_schema": {
+      "progress_notes": "NOT PRESENT — R18 assumed this collection; it does not exist in any migration file. Tests T-FILE-AUTH-1 through T-FILE-AUTH-7 must be redesigned around collections that actually exist.",
+      "newborn_enrollments": "NOT PRESENT — R18 assumed this collection; actual collection is 'enrollments'."
+    }
+  },
+  "unresolved_items": {
+    "articles_antenatal_rule": "OPERATOR DECISION REQUIRED — whether articles should require authentication is a policy decision. Current rule is public. Tests T-ART-ANON-DENIED and T-ART-ANTENATAL-VIS must be scored against the actual decided policy.",
+    "phone_verified_field": "NEEDS-EXTERNAL — whether phone_verified should be added to the users schema is a product decision.",
+    "is_alias_account_field": "NEEDS-EXTERNAL — whether alias accounts are a planned feature for this release is NEEDS-EXTERNAL.",
+    "v029_schema_differences": "NEEDS-EXTERNAL — whether v0.29.3 PocketBase applies these migrations identically to v0.28.4 is UNVERIFIED. Operator must run the harness on v0.29.3.",
+    "email_authRule": "NEEDS-EXTERNAL — whether authRule = 'verified = true' is set on users collection is UNVERIFIED from static inspection alone."
+  }
+}

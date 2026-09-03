@@ -1,0 +1,178 @@
+migrate((app) => {
+
+  // ── Collection ────────────────────────────────────────────────────────────
+  const coll = new Collection({
+    name: "whatsapp_templates",
+    type: "base",
+    listRule:   "@request.auth.role = 'admin' || @request.auth.role = 'superadmin'",
+    viewRule:   "@request.auth.role = 'admin' || @request.auth.role = 'superadmin'",
+    createRule: "@request.auth.role = 'admin' || @request.auth.role = 'superadmin'",
+    updateRule: "@request.auth.role = 'admin' || @request.auth.role = 'superadmin'",
+    deleteRule: null,
+    fields: [
+      { type: "text",   name: "display_name",       required: true, max: 200 },
+      { type: "text",   name: "trigger_event",       max: 100 },
+      { type: "text",   name: "trigger_description", max: 500 },
+      { type: "text",   name: "meta_template_name",  max: 100 },
+      { type: "select", name: "category",            values: ["UTILITY","MARKETING","AUTHENTICATION"], maxSelect: 1 },
+      { type: "select", name: "language_code",       values: ["en","ms"], maxSelect: 1 },
+      { type: "select", name: "header_type",         values: ["NONE","TEXT","IMAGE"], maxSelect: 1 },
+      { type: "text",   name: "header_text",         max: 300 },
+      { type: "text",   name: "body",                max: 4096 },
+      { type: "text",   name: "footer_text",         max: 300 },
+      { type: "json",   name: "buttons" },
+      { type: "json",   name: "variables" },
+      { type: "select", name: "approval_status",     values: ["draft","submitted","approved","rejected"], maxSelect: 1 },
+      { type: "text",   name: "rejection_reason",    max: 1000 },
+      { type: "bool",   name: "is_active" },
+      { type: "number", name: "sort_order" },
+      { type: "autodate", name: "created",           onCreate: true },
+      { type: "autodate", name: "updated",           onCreate: true, onUpdate: true },
+    ],
+  });
+  app.save(coll);
+
+  // ── Seed templates ────────────────────────────────────────────────────────
+  const templates = [
+    {
+      display_name:       "Welcome Message",
+      trigger_event:      "user.registered",
+      trigger_description:"Sent automatically when a new user creates an account",
+      meta_template_name: "sdm_welcome_new_user",
+      category:           "UTILITY",
+      language_code:      "en",
+      header_type:        "TEXT",
+      header_text:        "Welcome to Sihat Dari Mula!",
+      body:               "Hi {{1}}!\n\nWelcome to Sihat Dari Mula. We're delighted to have you with us.\n\nYour journey to a healthier pregnancy and motherhood starts here. Explore our expert-led courses, track your baby's milestones, and connect with a community of mothers.\n\nStart your first lesson here:\n{{2}}",
+      footer_text:        "Reply STOP to opt out.",
+      buttons:   [{ type: "URL", text: "Open App", url: "https://app.sihatdarimula.my" }],
+      variables: [
+        { index: 1, name: "first_name", description: "User's first name", example: "Siti" },
+        { index: 2, name: "app_link",   description: "App URL",            example: "https://app.sihatdarimula.my" },
+      ],
+      approval_status: "draft",
+      is_active:       false,
+      sort_order:      1,
+    },
+    {
+      display_name:       "Enrolment Confirmation",
+      trigger_event:      "user.enrolled",
+      trigger_description:"Sent when a user successfully enrols in a course",
+      meta_template_name: "sdm_enrollment_confirmation",
+      category:           "UTILITY",
+      language_code:      "en",
+      header_type:        "TEXT",
+      header_text:        "You're enrolled!",
+      body:               "Hi {{1}}!\n\nGreat news — you are now enrolled in *{{2}}*.\n\nYour first lesson is ready. We recommend setting aside 15-20 minutes a day to make steady progress.\n\nTap the link below to begin:\n{{3}}",
+      footer_text:        "",
+      buttons:   [{ type: "URL", text: "Start Learning", url: "https://app.sihatdarimula.my" }],
+      variables: [
+        { index: 1, name: "first_name",  description: "User's first name",                    example: "Aishah" },
+        { index: 2, name: "course_name", description: "Name of the enrolled course",           example: "Nutrition in Pregnancy" },
+        { index: 3, name: "course_link", description: "Direct link to the course in the app", example: "https://app.sihatdarimula.my" },
+      ],
+      approval_status: "draft",
+      is_active:       false,
+      sort_order:      2,
+    },
+    {
+      display_name:       "Weekly Progress Nudge",
+      trigger_event:      "cron.weekly_nudge",
+      trigger_description:"Sent every Monday to learners who have not yet completed their active course",
+      meta_template_name: "sdm_weekly_progress_nudge",
+      category:           "MARKETING",
+      language_code:      "en",
+      header_type:        "NONE",
+      header_text:        "",
+      body:               "Hi {{1}}, just checking in!\n\nYou are currently *{{2}}%* through *{{3}}* — keep going!\n\nYour next lesson is: *{{4}}*\n\nJump back in here: {{5}}",
+      footer_text:        "Reply STOP to unsubscribe from weekly reminders.",
+      buttons:   [],
+      variables: [
+        { index: 1, name: "first_name",        description: "User's first name",            example: "Nurul" },
+        { index: 2, name: "progress_percent",  description: "Current course completion %",  example: "45" },
+        { index: 3, name: "course_name",       description: "Name of the active course",    example: "Breastfeeding Basics" },
+        { index: 4, name: "next_lesson_title", description: "Title of next incomplete lesson", example: "Lesson 3: Positioning and Latch" },
+        { index: 5, name: "course_link",       description: "Direct link to the course",    example: "https://app.sihatdarimula.my" },
+      ],
+      approval_status: "draft",
+      is_active:       false,
+      sort_order:      3,
+    },
+    {
+      display_name:       "Course Completion Celebration",
+      trigger_event:      "user.completed_course",
+      trigger_description:"Sent when a user reaches 100% completion on a course",
+      meta_template_name: "sdm_course_completion",
+      category:           "UTILITY",
+      language_code:      "en",
+      header_type:        "TEXT",
+      header_text:        "Course Complete!",
+      body:               "Congratulations {{1}}!\n\nYou have completed *{{2}}* — that is a real achievement, and we are so proud of you for investing in your health and your baby's wellbeing.\n\nReady to keep learning? Explore your next course here:\n{{3}}",
+      footer_text:        "",
+      buttons:   [{ type: "URL", text: "Explore More Courses", url: "https://app.sihatdarimula.my" }],
+      variables: [
+        { index: 1, name: "first_name",  description: "User's first name",          example: "Farah" },
+        { index: 2, name: "course_name", description: "Name of completed course",   example: "Postpartum Recovery" },
+        { index: 3, name: "app_link",    description: "App URL to explore courses", example: "https://app.sihatdarimula.my" },
+      ],
+      approval_status: "draft",
+      is_active:       false,
+      sort_order:      4,
+    },
+    {
+      display_name:       "New Course Announcement",
+      trigger_event:      "admin.published_course",
+      trigger_description:"Sent to all opted-in users when an admin publishes a new course",
+      meta_template_name: "sdm_new_course_announcement",
+      category:           "MARKETING",
+      language_code:      "en",
+      header_type:        "TEXT",
+      header_text:        "New Course Available!",
+      body:               "Hi {{1}}!\n\nWe have just launched a brand new course on Sihat Dari Mula:\n\n*{{2}}*\n{{3}}\n\nBe among the first to enrol and start learning today:\n{{4}}",
+      footer_text:        "Reply STOP to unsubscribe from announcements.",
+      buttons:   [{ type: "URL", text: "Enrol Now", url: "https://app.sihatdarimula.my" }],
+      variables: [
+        { index: 1, name: "first_name",         description: "User's first name",                             example: "Rina" },
+        { index: 2, name: "course_title",        description: "Title of the new course",                      example: "Understanding Your Baby's Sleep" },
+        { index: 3, name: "course_description",  description: "Short description of the course (1-2 sentences)", example: "Learn evidence-based strategies to help your newborn develop healthy sleep habits from the very first weeks." },
+        { index: 4, name: "course_link",         description: "Direct link to the new course",                example: "https://app.sihatdarimula.my" },
+      ],
+      approval_status: "draft",
+      is_active:       false,
+      sort_order:      5,
+    },
+    {
+      display_name:       "Baby Milestone Reminder",
+      trigger_event:      "cron.baby_milestone",
+      trigger_description:"Sent when a baby reaches a key age milestone: 1, 2, 3, 6, 9, 12, 18, or 24 months",
+      meta_template_name: "sdm_baby_milestone_reminder",
+      category:           "UTILITY",
+      language_code:      "en",
+      header_type:        "TEXT",
+      header_text:        "Baby Milestone Reached!",
+      body:               "Hi {{1}}!\n\nLittle *{{2}}* is {{3}} months old — what a wonderful milestone!\n\nHere's something to keep in mind at this stage:\n{{4}}\n\nTrack all of {{2}}'s milestones and get personalised tips in the app:\n{{5}}",
+      footer_text:        "",
+      buttons:   [],
+      variables: [
+        { index: 1, name: "parent_name",    description: "Parent's first name",                     example: "Nadia" },
+        { index: 2, name: "baby_name",      description: "Baby's name",                             example: "Sofea" },
+        { index: 3, name: "age_months",     description: "Baby's age in months",                    example: "6" },
+        { index: 4, name: "milestone_tip",  description: "Age-appropriate health tip (2-3 sentences)", example: "Your baby may be ready to start solid foods. Begin with single-ingredient purees and introduce one new food every 3 days to watch for any reactions." },
+        { index: 5, name: "app_link",       description: "App URL",                                 example: "https://app.sihatdarimula.my" },
+      ],
+      approval_status: "draft",
+      is_active:       false,
+      sort_order:      6,
+    },
+  ];
+
+  for (const t of templates) {
+    const r = new Record(coll);
+    for (const [k, v] of Object.entries(t)) r.set(k, v);
+    app.save(r);
+  }
+
+}, (app) => {
+  const coll = app.findCollectionByNameOrId("whatsapp_templates");
+  app.delete(coll);
+});

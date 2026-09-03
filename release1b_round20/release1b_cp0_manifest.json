@@ -1,0 +1,60 @@
+{
+  "manifest_version": "1",
+  "round": "20",
+  "status": "DRAFTED — statically validated; zsh -n PASS; JSON strict-parse PASS",
+  "checkpoint_0_authorization_status": "AUTHORIZED BUT NOT EXECUTED — EXECUTION ENVIRONMENT UNAVAILABLE",
+  "authorization_note": "Checkpoint 0 was authorized by the operator. Execution environment (Coderick AI tool environment) lacks shell execution, process management, and external network download capability. No PocketBase v0.29.3 instance was started. No runtime results were observed. Operator must run the harness per release1b_round20_operator_instructions.md.",
+  "r20_basis": "Round 19 corrected per thirteen operator defects. Key changes: self-computing checksum verifier; GitHub API archive integrity; seed migration excluded from isolated run with credential scan; strict injection scoring; T-INJECT-CREATE-UNEXPECTED persisted-record verification; S-3 incident removed from CP0 scope; OTP adapter delivered as ninth artifact; report retention with --report-dest; cleanup canonical validation; antenatal policy scored; phone future-state tests; example.invalid domain; behavioral hook probes.",
+  "r18_authoritative_checksums": {
+    "note": "R18 static values, authoritative as delivered",
+    "release1b_cp0.zsh":              { "bytes": 145131, "sha256": "ad5277a66628437dad0caf78b063dd5538154ea5cf7dbddc29b350ac10ba472f" },
+    "release1b_cp0_manifest.json":    { "bytes": 8381,   "sha256": "8504d7703e866e3489ed687bcf60880ab0b78b6f0fcb9248172fb86781b3a0f8" },
+    "release1b_schema_manifest.json": { "bytes": 8380,   "sha256": "1e496d540acf784ab667532f2d5e5fc014f0d9b8ee5ffd174795e893fb9120c6" },
+    "release1b_hook_manifest.json":   { "bytes": 5627,   "sha256": "8d718f3884d9adb6821c7d7cd59451ad356bad4c795b62d47fabd347c211b785" },
+    "release1b_test_manifest.json":   { "bytes": 10923,  "sha256": "381452713eacfbb68abc8f3ec40266e68b4eb2ef9e8700e18707bbacc1360846" },
+    "release1b_round18_review.md":    { "bytes": 10743,  "sha256": "88a7f7ca1fbdbb2bb391a3eecb40e51d64299fd5644af64ebbf8fed87460ec89" },
+    "release1b_round18_checksums.sha256": { "bytes": 1252, "sha256": "5befdb6d0030a0c1465ed72bc227ebde2d027afe7641f9b48477fcbf3a7e1a47" }
+  },
+  "d1_through_d13_correction_status": "See release1b_round20_review.md §A for full correction matrix",
+  "defect_disposition_r20": {
+    "D-1":  { "title": "Checksum: self-computing; exit 1 on any failure",        "status": "IMPL" },
+    "D-2":  { "title": "PB archive: GitHub API digest + size verification",       "status": "IMPL (operator instructions §3)" },
+    "D-3":  { "title": "Seed migration excluded; credential scan; no git cmd",     "status": "IMPL" },
+    "D-4":  { "title": "Injection scoring: strict HTTP contract",                  "status": "IMPL" },
+    "D-5":  { "title": "T-INJECT-CREATE-UNEXPECTED: persisted-record verified",   "status": "IMPL" },
+    "D-6":  { "title": "S-3 incident removed from CP0 execution scope",           "status": "IMPL" },
+    "D-7":  { "title": "OTP adapter delivered; T-OTP-FLOW/CONCURRENCY executable","status": "IMPL" },
+    "D-8":  { "title": "Report retention: --report-dest, pre-cleanup export",     "status": "IMPL" },
+    "D-9":  { "title": "Cleanup: canonical validation before rm -rf",             "status": "IMPL" },
+    "D-10": { "title": "Antenatal policy scored (FAIL expected with current schema)","status": "IMPL" },
+    "D-11": { "title": "Phone future state: temporary schema + §28.6 tests",      "status": "IMPL" },
+    "D-12": { "title": "Test domain: example.invalid (RFC 2606 reserved)",        "status": "IMPL" },
+    "D-13": { "title": "Hook probes: behavioral probe for emergency_hardening",   "status": "IMPL" }
+  },
+  "or_true_inventory": [
+    { "site": 1, "location": "pb_wipe_secret_file — dd wipe", "classification": "BENIGN-RETAINED", "note": "dd may return non-zero on short files; rm -f always runs" },
+    { "site": 2, "location": "pb_trap_cleanup — watchdog reap", "classification": "BENIGN", "note": "Watchdog may have already exited; wait failure is safe" }
+  ],
+  "inspection_provenance_summary": {
+    "schema_source": "pb_get_schema tool (Coderick-managed workspace PocketBase v0.28.4)",
+    "migration_source": "pb_migrations/ directory, read-only static analysis",
+    "hook_source": "pb_hooks/ directory, read-only static analysis",
+    "production_instance": "NOT contacted — no request to app.sihatdarimula.my",
+    "v029_behavior": "NOT verified — behavior on v0.29.3 is predicted from migration source inspection, not observed runtime"
+  },
+  "pocketbase_version_target": "0.29.3",
+  "pocketbase_version_inspected": "0.28.4 (Coderick workspace)",
+  "result_without_harness_run": "AUTHORIZED BUT NOT EXECUTED — no rc observed",
+  "result_predicted_if_run": "RESULT: FAIL (rc=1) — T-ART-ANON-POLICY expected FAIL (articles public); T-INJECT-CREATE-ANON-ADMIN TBD (unverified prediction). If injection is confirmed and antenatal rule is fixed: INCOMPLETE (rc=2).",
+  "deliverables_r20": [
+    "release1b_cp0.zsh",
+    "release1b_otp_test_adapter.pb.js",
+    "release1b_cp0_manifest.json",
+    "release1b_schema_manifest.json",
+    "release1b_hook_manifest.json",
+    "release1b_test_manifest.json",
+    "release1b_operator_instructions.md",
+    "release1b_round20_review.md",
+    "release1b_round20_checksums.sha256"
+  ]
+}

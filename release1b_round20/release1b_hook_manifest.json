@@ -1,0 +1,69 @@
+{
+  "manifest_version": "1",
+  "round": "20",
+  "status": "DRAFTED — hook inventory sourced from pb_hooks/ directory inspection",
+  "inspection_provenance": {
+    "hooks_dir": "pb_hooks/",
+    "files_found": ["emergency_users_hardening.pb.js", "auth_whatsapp_otp.pb.js", "push_broadcast.pb.js", "whatsapp.pb.js"],
+    "files_absent": ["onboarding.pb.js (R18 speculative — removed R19)", "alias_intercept.pb.js (R18 speculative — removed R19)"],
+    "production_host": "NOT contacted"
+  },
+  "hooks": {
+    "emergency_users_hardening": {
+      "file": "emergency_users_hardening.pb.js",
+      "type": "record-hook",
+      "behavior": "onRecordUpdateRequest interceptor for users collection. Blocks privileged field changes (role to admin/superadmin) by non-superadmin callers. Returns ForbiddenError (403).",
+      "standalone_route": "NONE",
+      "probe_type": "behavioral",
+      "probe_note": "Behavioral proof in T-FIELD-ROLE-REJECT (§24). No standalone route; HOOK_PROBE_TYPE = behavioral.",
+      "nsu_bypass": "Callers with e.auth.collection().name === '_superusers' pass through",
+      "r20_notes": [
+        "D-13: probe type changed from UNRESOLVED health route to behavioral",
+        "Proposed R20 extension: add onRecordCreateRequest guard for role injection (S-1)",
+        "phone_verified protection: tested in §28.6 via temporary local schema"
+      ]
+    },
+    "auth_whatsapp_otp": {
+      "file": "auth_whatsapp_otp.pb.js",
+      "type": "route-hook",
+      "routes": {
+        "request": { "method": "POST", "path": "/api/auth/request-whatsapp-otp", "note": "Resolved from static source inspection" },
+        "verify":  { "method": "POST", "path": "/api/auth/verify-whatsapp-otp",  "note": "Resolved from static source inspection" }
+      },
+      "behavior": "Handles phone/WhatsApp OTP flow. Calls Meta Cloud API in production. Writes to phone_otps collection.",
+      "isolated_env_note": "NOT deployed to isolated hooks dir. Replaced by release1b_otp_test_adapter.pb.js for CP0 testing. Source project hook is never modified.",
+      "probe_type": "route (via OTP adapter in isolated env)"
+    },
+    "push_broadcast": {
+      "file": "push_broadcast.pb.js",
+      "type": "route-hook",
+      "standalone_route": "NEEDS-EXTERNAL — HOOK_PROBE_ROUTES[push_broadcast] must be filled",
+      "probe_type": "route",
+      "behavior": "Broadcasts push notifications. Calls external push service."
+    },
+    "whatsapp": {
+      "file": "whatsapp.pb.js",
+      "type": "route-hook",
+      "standalone_route": "NEEDS-EXTERNAL — HOOK_PROBE_ROUTES[whatsapp] must be filled",
+      "probe_type": "route",
+      "behavior": "WhatsApp messaging integration."
+    }
+  },
+  "otp_test_adapter": {
+    "file": "release1b_otp_test_adapter.pb.js",
+    "type": "LOCAL TEST ONLY — NOT FOR PRODUCTION",
+    "deployed_in_isolated_env": true,
+    "deployed_in_production": "MUST NOT BE",
+    "routes": {
+      "control":    { "method": "POST", "path": "/api/test/otp-control",    "auth": "NSU only" },
+      "rate_count": { "method": "GET",  "path": "/api/test/otp-rate-count", "auth": "NSU only" },
+      "request":    { "method": "POST", "path": "/api/auth/request-whatsapp-otp", "auth": "none required" },
+      "verify":     { "method": "POST", "path": "/api/auth/verify-whatsapp-otp",  "auth": "none required" }
+    },
+    "loopback_enforcement": "Rejects all non-127.0.0.1/::1 connections",
+    "synthetic_phone_pattern": "+601_R20TEST_<4-16 decimal digits>",
+    "states_modelled": ["sent/active", "send_failed", "pending_send"],
+    "rate_limit": "Attempt counter only (no phone stored); reset on mode change",
+    "meta_calls": "NEVER"
+  }
+}

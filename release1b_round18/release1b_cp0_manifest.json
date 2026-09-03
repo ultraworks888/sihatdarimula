@@ -1,0 +1,105 @@
+{
+  "manifest_version": "1",
+  "artifact": "release1b_cp0.zsh",
+  "round": "18",
+  "status": "DRAFTED",
+  "basis": "Round 17 narrowly corrected",
+  "r17_authoritative_checksums": {
+    "note": "Recorded from Round 18 static validation review",
+    "release1b_cp0.zsh":                  { "bytes": 144906, "sha256": "998f989d6ed086d1c6f4d75586d5387668bd30dd2c2ac232fab214bb9528ca10" },
+    "release1b_cp0_manifest.json":        { "bytes": 7409,   "sha256": "c6477204b2989af77cf19e15a4eec3e24bb854a4a54f5abce9f1f391835ae08c" },
+    "release1b_schema_manifest.json":     { "bytes": 8380,   "sha256": "274e6950c872723282072ef913d411465fe4ccc74d730fac80fbc4572302f4d3" },
+    "release1b_hook_manifest.json":       { "bytes": 4354,   "sha256": "88863318fc6b2590069f1e252d199cc160d3604238be7fa0b6a4684f3f24cfd3" },
+    "release1b_test_manifest.json":       { "bytes": 10087,  "sha256": "14c5af321d9b5a264d95d62b2af26f7773e7ad29e5c4dfce619ba81e255357b8" },
+    "release1b_round17_review.md":        { "bytes": 10258,  "sha256": "b3bbe29c304e372b1ee53ed14f8026cddfdb5549d08cfb313225c06b85273a49" },
+    "release1b_round17_checksums.sha256": { "bytes": 1543,   "sha256": "bf6bda3f260f086cd3b6ceca052b224775624baa7ed28c37ec7fc72df89ed65e" }
+  },
+  "integrity_design": "non-recursive: release1b_round18_checksums.sha256 covers all other R18 artifacts but not itself",
+  "validations_performed": {
+    "strict_json_parsing":        "NOT PERFORMED — tool-interface limitation",
+    "zsh_syntax_check":           "NOT PERFORMED — tool-interface limitation; script not executed",
+    "byte_counting":              "NOT PERFORMED — PENDING_FINAL_STATIC_VALIDATION",
+    "sha256_hashing":             "NOT PERFORMED — PENDING_FINAL_STATIC_VALIDATION",
+    "visual_inspection":          "PERFORMED",
+    "or_true_grep":               "PERFORMED — 2 executable || true; dd wipe (BENIGN) and watchdog reap (BENIGN)",
+    "kill_0_usage_scan":          "PERFORMED — kill -0 absent from shutdown path; ps -o ppid= used instead",
+    "locale_dependent_parsing":   "PERFORMED — no localized stderr text matching; pb_pid_exists() removed",
+    "otp_semantics_check":        "PERFORMED — T-CONCURRENCY-OTP-SEND does not reference email OTP or Mailhog",
+    "mutating_probe_check":       "PERFORMED — no real OTP send used as availability probe",
+    "helper_exit_status_check":   "PERFORMED — pbj_http.py exit status captured before output parsing in §36a"
+  },
+  "execution_confirmation": {
+    "script_executed":   false,
+    "package_check_run": false,
+    "harness_check_run": false,
+    "preflight_run":     false,
+    "run_mode_invoked":  false,
+    "network_contact":   false,
+    "service_started":   false,
+    "database_touched":  false,
+    "production_contact":false
+  },
+  "r18_changes_from_r17": {
+    "1_pb_pid_exists_removed": {
+      "finding": "R17 pb_pid_exists() matched localized kill -0 stderr text (English strings for EPERM/ESRCH). This is unreliable across OS, shell, and locale; EPERM vs ESRCH inference from human-readable output violates Finding 2.",
+      "fix": "pb_pid_exists() removed entirely from §5. Shutdown design replaced with watchdog pattern that uses ps -o ppid= (structured output, no localized text) for ownership verification."
+    },
+    "2_watchdog_termination_pattern": {
+      "finding": "R17 polled kill -0 before calling wait. A zombie child (exited but not yet reaped) satisfies kill -0, causing false SIGKILL escalation and spurious CLEANUP_FAILURE.",
+      "fix": "New pb_trap_cleanup() order: (1) PPID verified with ps -o ppid= — process confirmed as our direct child; (2) SIGTERM sent; (3) background watchdog subshell sleeps 6s then re-verifies PPID before sending SIGKILL; writes a flag file if it fires; (4) wait called in parent — reaps normal exit and zombie immediately without delay; (5) watchdog cancelled (kill) and reaped (wait || true); (6) result classified by flag file and wait rc; (7) PPID re-checked after wait; (8) CLEANUP_FAILURE=1 only for genuine escalation or confirmed-unreaped child; (9) PID cleared."
+    },
+    "3_or_true_inventory_updated": {
+      "r18_site_1": "dd || true in pb_wipe_secret_file — BENIGN-RETAINED (unchanged)",
+      "r18_site_2": "wait '$_watchdog_pid' 2>/dev/null || true in pb_trap_cleanup — BENIGN: wait returns nonzero when watchdog was killed by cancel signal; replaces old 'wait $_stored_pid || true' site which is now clean (rc captured).",
+      "total": 2
+    },
+    "4_selftest_updated": {
+      "removed": "pb_pid_exists assertion (helper no longer exists)",
+      "added": "ps -o ppid= check for PID 99999999: verifies a non-existent PID does not appear to belong to this process (structured, no text parsing)"
+    },
+    "5_concurrency_auth_helper_exit_status": {
+      "finding": "R17 called python3 pbj_http.py then immediately read output files without capturing or checking the helper's exit status.",
+      "fix": "In t_concurrency_auth_group(), _helper_rc captured immediately after pbj_http.py invocation for the pre-worker record fetch. If _helper_rc != 0: t_harness_err emitted, allocated files removed, function returns 1 without parsing status or response path."
+    },
+    "6_concurrency_otp_send_redesigned": {
+      "finding": "R17 T-CONCURRENCY-OTP-SEND targeted /api/collections/users/request-otp with email identity and Mailhog delivery — PocketBase email OTP, not Release 1B phone/WhatsApp OTP. No probe should send a real OTP request. Rate-limit invariant was undefined (broad 200/204/429 accepted set). Per-worker auth config was missing.",
+      "fix": "T-CONCURRENCY-OTP-SEND completely redesigned. Immediately checks HOOK_OTP_PHONE_ROUTE and HOOK_OTP_MOCK_CONTROL_ROUTE constants. If either is UNRESOLVED__NEEDS_EXTERNAL (current state), emits MANDATORY-DEFERRED listing all six prerequisite categories. No HTTP request of any kind is made. Mailhog not referenced. Implementation deferred until endpoint contract is supplied."
+    },
+    "7_hook_otp_constants_added": {
+      "description": "HOOK_OTP_PHONE_ROUTE and HOOK_OTP_MOCK_CONTROL_ROUTE added to §3 CONSTANTS as UNRESOLVED__NEEDS_EXTERNAL__ placeholders. Referenced by T-CONCURRENCY-OTP-SEND and pb_check_package_completeness()."
+    },
+    "8_idempotency_wording_updated": {
+      "description": "t_concurrency_idempotency_post_group() comment updated to explicitly state: T-CONCURRENCY-AUTH is IMPL; T-CONCURRENCY-OTP-SEND is MANDATORY-DEFERRED pending phone-OTP hook semantics; T-CONCURRENCY-IDEMPOTENCY-POST is MANDATORY-DEFERRED and implementation is INCOMPLETE (not merely deferred-because-configured)."
+    }
+  },
+  "or_true_r18_inventory": {
+    "total_executable": 2,
+    "benign_retained": [
+      {
+        "location": "pb_wipe_secret_file",
+        "rationale": "dd may return non-zero on partial write; rm -f removes the file unconditionally"
+      },
+      {
+        "location": "pb_trap_cleanup — watchdog reap",
+        "rationale": "wait returns nonzero when watchdog was killed by parent's cancel signal before it fired; this is expected and harmless"
+      }
+    ]
+  },
+  "defect_classifications": {
+    "11": "IMPL — bounded child shutdown corrected (R18 watchdog); no kill -0 poll; no zombie misclassification; no locale-dependent parsing; concurrency pre-worker propagation complete; orchestration policies enforced (R16); final exit comprehensive (R17)",
+    "16": "IMPL-MD — interceptor baseline NEEDS-EXTERNAL",
+    "21": "IMPL — E4/E6/E8 corrected R15, preserved R18",
+    "23": "IMPL-MD — T-CONCURRENCY-AUTH: IMPL; T-CONCURRENCY-OTP-SEND: IMPL-MD (deferred, phone-OTP semantics NEEDS-EXTERNAL, no email OTP substitution); T-CONCURRENCY-IDEMPOTENCY-POST: IMPL-MD (incomplete, endpoint contract NEEDS-EXTERNAL)"
+  },
+  "defect_count_impl":          21,
+  "defect_count_impl_md":        8,
+  "defect_count_needs_external": 2,
+  "defect_count_note": "Counts unchanged from R17 (defect 11 was already IMPL in R17 claim but reassessed in R18 after watchdog fix — result is still IMPL). Defect 23 remains IMPL-MD.",
+  "defect_number_mapping": {
+    "27": "actor-role rule",
+    "28": "package integrity / HOOK_PROBE_ROUTES key-set match",
+    "29": "path disclosure sanitization in report",
+    "30": "non-atomic export replaced with atomic rename"
+  },
+  "checkpoint_0_authorization": "NOT AUTHORIZED — --authorize-cp0 guard present in main()"
+}

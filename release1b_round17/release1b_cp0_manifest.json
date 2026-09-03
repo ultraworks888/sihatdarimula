@@ -1,0 +1,106 @@
+{
+  "manifest_version": "1",
+  "artifact": "release1b_cp0.zsh",
+  "round": "17",
+  "status": "DRAFTED",
+  "basis": "Round 16 narrowly corrected",
+  "r16_authoritative_checksums": {
+    "note": "Recorded from Round 17 static validation review",
+    "release1b_cp0.zsh":                  { "bytes": 133233, "sha256": "8190d39a3482edb3b85a986c007fa5e969f9c0e81e9e98d4d338d11e3653e792" },
+    "release1b_cp0_manifest.json":        { "bytes": 7096,   "sha256": "99c415a46bfb91ba351f3aa26af27a66f51fed5ae4a26950680c819e9c211bdf" },
+    "release1b_schema_manifest.json":     { "bytes": 8380,   "sha256": "94554d92f13f028114d6debb12e571524084633a1b5b8a2153f3459ac96a2e94" },
+    "release1b_hook_manifest.json":       { "bytes": 3663,   "sha256": "8c0ce54a57ef893cf229f324f33d82cd3dcb07e8a0c9b17bd3f94cec6ad54c06" },
+    "release1b_test_manifest.json":       { "bytes": 9492,   "sha256": "1864fc2cbabfeeb915d0a76423bd680b221737f73957a6f1774a17d0e9afa65e" },
+    "release1b_round16_review.md":        { "bytes": 9319,   "sha256": "67b54e4bdac3dd233df1446e5b9017b536442336538c204ed7570af4db900cca" },
+    "release1b_round16_checksums.sha256": { "bytes": 1527,   "sha256": "8c71ca7e1dfec723155b8c6df85622fe6428486c6a4f5e3df9ad999b9a8985ea" }
+  },
+  "integrity_design": "non-recursive: release1b_round17_checksums.sha256 covers all other R17 artifacts but not itself",
+  "validations_performed": {
+    "strict_json_parsing": "NOT PERFORMED — tool-interface limitation",
+    "zsh_syntax_check": "NOT PERFORMED — tool-interface limitation; script not executed in any mode",
+    "byte_counting": "NOT PERFORMED — PENDING_FINAL_STATIC_VALIDATION",
+    "sha256_hashing": "NOT PERFORMED — PENDING_FINAL_STATIC_VALIDATION",
+    "visual_inspection": "PERFORMED",
+    "or_true_grep": "PERFORMED — 2 executable || true confirmed: dd wipe (BENIGN) and kill-wait reap (BENIGN)"
+  },
+  "execution_confirmation": {
+    "script_executed": false,
+    "package_check_run": false,
+    "harness_check_run": false,
+    "preflight_run": false,
+    "run_mode_invoked": false,
+    "network_contact": false,
+    "service_started": false,
+    "database_touched": false,
+    "production_contact": false
+  },
+  "r17_changes_from_r16": {
+    "1_pb_pid_exists_helper": {
+      "description": "New pb_pid_exists() function in §5. Returns 0=signalable/exists, 1=ESRCH/gone, 2=EPERM/exists-but-no-permission. Used by pb_trap_cleanup to correctly distinguish process states during termination polling."
+    },
+    "2_pb_trap_cleanup_termination_order": {
+      "finding": "R16 called wait before the bounded poll and SIGKILL fallback; wait could block indefinitely if SIGTERM did not terminate PocketBase",
+      "fix": "New order: (1) SIGTERM with rc noted; (2) bounded kill -0 poll 10x0.5s; (3) SIGKILL + CLEANUP_FAILURE + brief poll 6x0.5s if still alive; (4) bounded wait for reap only — placed after termination confirmed or CLEANUP_FAILURE set; (5) RELEASE1B_PB_PID=0",
+      "or_true_site": "wait || true retained as BENIGN at step 4: reap is bounded because process state was already confirmed; wait returns nonzero for a signal-killed process"
+    },
+    "3_concurrency_auth_pre_worker_validation": {
+      "finding": "R16 did not validate each pre-worker setup step independently",
+      "fix": "Five explicit pre-worker steps with t_harness_err on failure: (1) ORDINARY_ID_FILE non-empty; (2) user record HTTP status == 200; (3) response path file exists; (4) email extraction rc and content valid; (5) WRONG_PW_FILE exists. Per-worker body generation validated with t_harness_err before launch."
+    },
+    "4_concurrency_auth_per_worker_dirs": {
+      "description": "Each worker now uses a separate isolated directory under RELEASE1B_TEST_TMP. Body, status, and response-path files all live under the worker-specific dir. Directory cleaned up after result classification."
+    },
+    "5_concurrency_otp_send_group": {
+      "description": "New t_concurrency_otp_send_group() in §36b. Pre-worker setup validated step-by-step (ID, record, email, OTP endpoint probe). MANDATORY-DEFERRED if Mailhog absent or OTP endpoint returns 404. If available: N=4 concurrent OTP-send requests with per-worker isolation. Accepted statuses: 200, 204, 429.",
+      "classification": "IMPL-MD: OTP availability is NEEDS-EXTERNAL"
+    },
+    "6_concurrency_idempotency_post_group": {
+      "description": "New t_concurrency_idempotency_post_group() in §36c. Unconditionally MANDATORY-DEFERRED: idempotency endpoint route, key header, and expected duplicate-record behavior are all NEEDS-EXTERNAL.",
+      "classification": "IMPL-MD"
+    },
+    "7_t_concurrency_group_updated": {
+      "description": "t_concurrency_group() now calls all three concurrency functions: t_concurrency_auth_group, t_concurrency_otp_send_group, t_concurrency_idempotency_post_group."
+    },
+    "8_three_state_final_result": {
+      "finding": "R16 allowed RESULT: PASS even with mandatory-deferred or unresolved items",
+      "fix": "Three states: FAIL (rc=1) if T_BLOCKING>0 || T_FAIL>0 || T_HARNESS_ERR>0 || CLEANUP_FAILURE>0; INCOMPLETE (rc=2) if no failures but T_DEFERRED>0 || T_UNRESOLVED>0; PASS (rc=0) only if no failures and no gaps. INCOMPLETE explicitly cannot support Checkpoint 0 authorization.",
+      "exit_codes": { "0": "PASS", "1": "FAIL", "2": "INCOMPLETE" }
+    },
+    "9_pb_pid_exists_selftest": {
+      "description": "t_harness_selftest() now includes a self-test assertion for pb_pid_exists with a non-existent PID (expected return 1)."
+    }
+  },
+  "or_true_r17_inventory": {
+    "total_executable": 2,
+    "benign_retained": [
+      {
+        "location": "pb_wipe_secret_file",
+        "rationale": "dd may return non-zero on partial write; rm -f below unconditionally removes the file"
+      },
+      {
+        "location": "pb_trap_cleanup step 4",
+        "rationale": "wait returns nonzero for a signal-killed process; process termination already confirmed via pb_pid_exists polling before this call; serves only as a bounded zombie reap"
+      }
+    ]
+  },
+  "defect_classifications": {
+    "11": "IMPL — bounded termination ordering fixed (R17); concurrency pre-worker setup propagation fixed (R17); all orchestration policies enforced (R16); final exit checks all four conditions (R16)",
+    "16": "IMPL-MD — interceptor baseline for alias_intercept is NEEDS-EXTERNAL",
+    "21": "IMPL — E4/E6/E8 corrected R15, preserved R17",
+    "23": "IMPL-MD — T-CONCURRENCY-AUTH is IMPL; T-CONCURRENCY-OTP-SEND is MANDATORY-DEFERRED (Mailhog + OTP endpoint NEEDS-EXTERNAL); T-CONCURRENCY-IDEMPOTENCY-POST is MANDATORY-DEFERRED (hook endpoint NEEDS-EXTERNAL)"
+  },
+  "defect_count_impl": 21,
+  "defect_count_impl_md": 8,
+  "defect_count_needs_external": 2,
+  "defect_count_recalculation_note": "Defect 23 moved from IMPL (R16) to IMPL-MD (R17): auth concurrency implemented; OTP and idempotency scenarios deferred. IMPL: 22-1=21. IMPL-MD: 7+1=8.",
+  "defect_number_mapping": {
+    "27": "actor-role rule",
+    "28": "package integrity / HOOK_PROBE_ROUTES key-set match",
+    "29": "path disclosure sanitization in report",
+    "30": "non-atomic export replaced with atomic rename"
+  },
+  "script_basename": "release1b_cp0.zsh",
+  "output_directory": "release1b_round17/",
+  "r13_r14_r15_r16_preservation": "All prior-round artifacts unchanged",
+  "checkpoint_0_authorization": "NOT AUTHORIZED — --authorize-cp0 guard remains in main()"
+}

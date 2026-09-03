@@ -1,0 +1,141 @@
+{
+  "_comment": "Release 1B — Hook Manifest. Round 13. Status: DRAFTED. No source files supplied.",
+  "_preparation": "Hook source files are a preauthorization blocker (B-HOOKS). This manifest describes what must be supplied.",
+
+  "hook_classes": {
+    "baseline_reproduction": "Represents existing production behavior from Release 1A",
+    "capability_probe":      "Local-only diagnostic code; never deployed to production",
+    "candidate_hardening":   "Possible future production code; not authorized for production deployment",
+    "provider_mock":         "Local-only simulation; never contacts external provider",
+    "test_instrumentation":  "Local-only evidence collection; never deployed"
+  },
+
+  "required_hooks": [
+    {
+      "name": "alias_interceptor",
+      "filename": "alias_interceptor.pb.js",
+      "class": "baseline_reproduction",
+      "purpose": "Intercept auth-with-password requests; enforce timing and response uniformity for alias accounts",
+      "routes": ["POST:/api/collections/users/auth-with-password (intercepted)"],
+      "collections_affected": ["users"],
+      "actor_behavior": {
+        "anon":            "Processes all requests through interceptor",
+        "ordinary":        "N/A — this is a login hook",
+        "app_admin":       "N/A — this is a login hook",
+        "app_superadmin":  "N/A — this is a login hook",
+        "native_superuser":"Hook behavior when NSU token is used — must be explicitly tested"
+      },
+      "local_configuration": "Uses RELEASE1B_ISOLATED_ROOT paths only; no production endpoints",
+      "activation_test":   "T-ALIAS-INTERCEPTOR-ACTIVE: anonymous wrong-pw returns 400, not 404 or 500",
+      "removal_test":      "T-HOOK-REMOVE-alias_interceptor: route reverts to default PocketBase behavior",
+      "sha256":            "UNRESOLVED — B-HOOKS",
+      "source_path":       "UNRESOLVED — B-HOOKS",
+      "status":            "BLOCKED"
+    },
+    {
+      "name": "role_hardening",
+      "filename": "role_hardening.pb.js",
+      "class": "candidate_hardening",
+      "purpose": "Enforce that role, phone, phone_verified, and is_alias_account fields cannot be self-modified by ordinary users",
+      "routes": ["PATCH:/api/collections/users/records/* (intercepted)"],
+      "collections_affected": ["users"],
+      "actor_behavior": {
+        "anon":            "No auth — rejected at collection rule before hook",
+        "ordinary":        "Protected fields blocked; safe fields allowed",
+        "app_admin":       "Can modify role up to admin; cannot grant superadmin",
+        "app_superadmin":  "Cannot self-modify or demote without superadmin confirmation",
+        "native_superuser":"Must be tested explicitly — hook may bypass or process"
+      },
+      "local_configuration": "No external dependencies",
+      "activation_test":   "T-FIELD-ROLE: ordinary user PATCH role=admin returns 403",
+      "removal_test":      "After removal: PATCH role=admin succeeds if only collection rule present (or still blocked — baseline must be documented)",
+      "sha256":            "UNRESOLVED — B-HOOKS",
+      "source_path":       "UNRESOLVED — B-HOOKS",
+      "status":            "BLOCKED"
+    },
+    {
+      "name": "consent_gate",
+      "filename": "consent_gate.pb.js",
+      "class": "candidate_hardening",
+      "purpose": "Gate file and content access behind current consent version",
+      "routes": ["GET:/api/files/* (intercepted)", "GET:/api/collections/courses/records/* (intercepted)"],
+      "collections_affected": ["consent_records", "courses"],
+      "actor_behavior": {
+        "anon":            "Denied — no consent possible",
+        "ordinary":        "Allowed only if latest consent version accepted",
+        "app_admin":       "TBD — must be tested",
+        "app_superadmin":  "TBD — must be tested",
+        "native_superuser":"Must be tested explicitly"
+      },
+      "local_configuration": "Consent version constant set to test value; no production consent API",
+      "activation_test":   "T-FILE-AUTH-5: file denied when consent version insufficient",
+      "removal_test":      "After removal: file accessible without consent check",
+      "sha256":            "UNRESOLVED — B-HOOKS",
+      "source_path":       "UNRESOLVED — B-HOOKS",
+      "status":            "BLOCKED"
+    },
+    {
+      "name": "otp_phone_link",
+      "filename": "otp_phone_link.pb.js",
+      "class": "candidate_hardening",
+      "purpose": "Authenticated legacy phone linking via OTP; requires ordinary user token",
+      "routes": [
+        "POST:/api/v1/phone/request-otp",
+        "POST:/api/v1/phone/verify-otp"
+      ],
+      "collections_affected": ["users", "otp_requests"],
+      "actor_behavior": {
+        "anon":            "401 — authentication required",
+        "ordinary":        "Allowed — initiates OTP flow",
+        "app_admin":       "403 — admin role not eligible",
+        "app_superadmin":  "403 — superadmin role not eligible",
+        "native_superuser":"Must be tested explicitly"
+      },
+      "local_configuration": "MOCK_PROVIDER_URL set to local mock provider endpoint; no Meta contact",
+      "activation_test":   "T-OTP-LEGACY-AUTH-REQUIRED: anonymous request returns 401",
+      "removal_test":      "After removal: endpoint returns 404",
+      "sha256":            "UNRESOLVED — B-HOOKS",
+      "source_path":       "UNRESOLVED — B-HOOKS",
+      "status":            "BLOCKED"
+    },
+    {
+      "name": "mock_provider",
+      "filename": "mock_provider.pb.js",
+      "class": "provider_mock",
+      "purpose": "Local-only OTP provider simulator; accepts MOCK_PHONE_LOCAL; never contacts Meta or any external service",
+      "routes": ["POST:/api/mock/send-otp"],
+      "collections_affected": [],
+      "actor_behavior": {
+        "all": "Accepts local test phone number; returns fake OTP code; logs to isolated root only"
+      },
+      "local_configuration": "MOCK_PHONE_LOCAL constant defined in hook; no external network calls",
+      "activation_test":   "POST /api/mock/send-otp with MOCK_PHONE_LOCAL returns 200",
+      "removal_test":      "After removal: endpoint returns 404",
+      "sha256":            "UNRESOLVED — B-HOOKS",
+      "source_path":       "UNRESOLVED — B-HOOKS",
+      "status":            "BLOCKED",
+      "note":              "Must never route any request outside loopback. Must verify no outbound connection is made."
+    }
+  ],
+
+  "phone_test_values": {
+    "T_PHONE_TEST_VALUE": "TEST-NOT-A-PHONE",
+    "usage":              "Direct protected-field write tests only; verifies the field cannot be set",
+    "MOCK_PHONE_LOCAL":   "+60100000000TEST",
+    "mock_usage":         "Passed to mock provider only; accepted only by mock_provider hook; never routed externally",
+    "real_number_policy": "A real consenting subscriber number may be used only in a separately authorized production OTP test; not part of Checkpoint 0"
+  },
+
+  "hooks_not_required_at_checkpoint_0": [
+    {
+      "name": "phone_first_register",
+      "reason": "Anonymous phone-first flow is future release; disabled feature flag; not deployed",
+      "status": "future_release"
+    },
+    {
+      "name": "push_broadcast",
+      "reason": "Separately deferred defect; outside Release 1B scope",
+      "status": "authorized_exclusion"
+    }
+  ]
+}

@@ -1,0 +1,294 @@
+{
+  "_comment": "Release 1B — Required Schema Design. Round 13. Status: DRAFTED. No migration files supplied.",
+  "_preparation": "This document describes what the sanitized schema package must contain. Actual .js migration files are a preauthorization blocker (B-SCHEMA).",
+
+  "required_migration_files": [
+    {
+      "file": "001_users_auth.js",
+      "purpose": "Configure users auth collection with required fields and baseline rules",
+      "status": "UNRESOLVED — not supplied"
+    },
+    {
+      "file": "002_children.js",
+      "purpose": "children collection",
+      "status": "UNRESOLVED — not supplied"
+    },
+    {
+      "file": "003_courses_lessons.js",
+      "purpose": "courses and lessons collections",
+      "status": "UNRESOLVED — not supplied"
+    },
+    {
+      "file": "004_lesson_progress.js",
+      "purpose": "lesson_progress collection",
+      "status": "UNRESOLVED — not supplied"
+    },
+    {
+      "file": "005_health_tracking.js",
+      "purpose": "growth_logs, activity_logs, nutrition_logs, wellbeing_logs, immunisations",
+      "status": "UNRESOLVED — not supplied"
+    },
+    {
+      "file": "006_content.js",
+      "purpose": "articles, bookmarks, notifications",
+      "status": "UNRESOLVED — not supplied"
+    },
+    {
+      "file": "007_consent.js",
+      "purpose": "consent_records collection",
+      "status": "UNRESOLVED — not supplied"
+    },
+    {
+      "file": "008_otp.js",
+      "purpose": "otp_requests collection",
+      "status": "UNRESOLVED — not supplied"
+    }
+  ],
+
+  "collections": [
+    {
+      "name": "users",
+      "type": "auth",
+      "required_fields": [
+        {"name": "name",                    "type": "text"},
+        {"name": "phone",                   "type": "text",   "note": "protected — no direct write by user"},
+        {"name": "phone_verified",          "type": "bool",   "note": "protected — set only by server"},
+        {"name": "role",                    "type": "select", "values": ["user","admin","superadmin"], "note": "protected"},
+        {"name": "is_alias_account",        "type": "bool",   "note": "protected"},
+        {"name": "language_selected",       "type": "select", "values": ["ms","en","zh"]},
+        {"name": "welcome_completed",       "type": "bool"},
+        {"name": "recovery_email_prompted", "type": "bool"}
+      ],
+      "baseline_rules": {
+        "listRule":   "role = 'superadmin' || role = 'admin'",
+        "viewRule":   "@request.auth.id = id || role = 'superadmin' || role = 'admin'",
+        "createRule": "@request.auth.id = '' && @request.body.role:isset = false && @request.body.is_alias_account:isset = false && @request.body.phone:isset = false",
+        "updateRule": "@request.auth.id = id && @request.body.role:isset = false && @request.body.is_alias_account:isset = false && @request.body.phone:isset = false && @request.body.phone_verified:isset = false",
+        "deleteRule": "role = 'superadmin'"
+      },
+      "note": "Recovery email field and endpoint blocked pending T-EMAIL-LIFECYCLE"
+    },
+    {
+      "name": "children",
+      "type": "base",
+      "required_fields": [
+        {"name": "user",      "type": "relation", "target": "users", "maxSelect": 1},
+        {"name": "name",      "type": "text"},
+        {"name": "is_born",   "type": "bool"},
+        {"name": "date_of_birth", "type": "date",  "required": false},
+        {"name": "gender",    "type": "select", "values": ["male","female","unspecified"], "required": false}
+      ],
+      "baseline_rules": {
+        "listRule":   null,
+        "viewRule":   null,
+        "createRule": null,
+        "updateRule": null,
+        "deleteRule": null
+      },
+      "note": "Rules locked (null) pending T-RULE confirmation in v0.29.3"
+    },
+    {
+      "name": "courses",
+      "type": "base",
+      "required_fields": [
+        {"name": "title",       "type": "text"},
+        {"name": "category",   "type": "select", "values": ["antenatal","newborn","postnatal","child"]},
+        {"name": "is_published","type": "bool"},
+        {"name": "thumbnail",  "type": "file",   "maxSelect": 1, "required": false}
+      ],
+      "baseline_rules": {
+        "listRule":   "is_published = true && category = 'antenatal'",
+        "viewRule":   "is_published = true && category = 'antenatal'",
+        "createRule": null,
+        "updateRule": null,
+        "deleteRule": null
+      }
+    },
+    {
+      "name": "lessons",
+      "type": "base",
+      "required_fields": [
+        {"name": "course",   "type": "relation", "target": "courses", "maxSelect": 1},
+        {"name": "title",    "type": "text"},
+        {"name": "content",  "type": "editor",   "required": false},
+        {"name": "order",    "type": "number"}
+      ],
+      "baseline_rules": {
+        "listRule":   "course.category = 'antenatal' && course.is_published = true",
+        "viewRule":   "course.category = 'antenatal' && course.is_published = true",
+        "createRule": null,
+        "updateRule": null,
+        "deleteRule": null
+      }
+    },
+    {
+      "name": "lesson_progress",
+      "type": "base",
+      "required_fields": [
+        {"name": "user",             "type": "relation", "target": "users",   "maxSelect": 1},
+        {"name": "lesson",           "type": "relation", "target": "lessons", "maxSelect": 1},
+        {"name": "progress_percent", "type": "number"},
+        {"name": "watch_percent",    "type": "number"},
+        {"name": "is_completed",     "type": "bool"}
+      ],
+      "baseline_rules": {
+        "listRule":   null,
+        "viewRule":   null,
+        "createRule": null,
+        "updateRule": null,
+        "deleteRule": null
+      }
+    },
+    {
+      "name": "growth_logs",
+      "type": "base",
+      "required_fields": [
+        {"name": "user",      "type": "relation", "target": "users", "maxSelect": 1},
+        {"name": "weight_kg", "type": "number",   "required": false},
+        {"name": "height_cm", "type": "number",   "required": false}
+      ],
+      "baseline_rules": {"listRule": null, "viewRule": null, "createRule": null, "updateRule": null, "deleteRule": null}
+    },
+    {
+      "name": "activity_logs",
+      "type": "base",
+      "required_fields": [
+        {"name": "user", "type": "relation", "target": "users", "maxSelect": 1},
+        {"name": "type", "type": "text"}
+      ],
+      "baseline_rules": {"listRule": null, "viewRule": null, "createRule": null, "updateRule": null, "deleteRule": null}
+    },
+    {
+      "name": "nutrition_logs",
+      "type": "base",
+      "required_fields": [
+        {"name": "user",  "type": "relation", "target": "users", "maxSelect": 1},
+        {"name": "notes", "type": "text",     "required": false}
+      ],
+      "baseline_rules": {"listRule": null, "viewRule": null, "createRule": null, "updateRule": null, "deleteRule": null}
+    },
+    {
+      "name": "wellbeing_logs",
+      "type": "base",
+      "required_fields": [
+        {"name": "user", "type": "relation", "target": "users", "maxSelect": 1},
+        {"name": "mood", "type": "text",     "required": false}
+      ],
+      "baseline_rules": {"listRule": null, "viewRule": null, "createRule": null, "updateRule": null, "deleteRule": null}
+    },
+    {
+      "name": "immunisations",
+      "type": "base",
+      "required_fields": [
+        {"name": "user", "type": "relation", "target": "users", "maxSelect": 1},
+        {"name": "name", "type": "text"}
+      ],
+      "baseline_rules": {"listRule": null, "viewRule": null, "createRule": null, "updateRule": null, "deleteRule": null}
+    },
+    {
+      "name": "articles",
+      "type": "base",
+      "required_fields": [
+        {"name": "title",      "type": "text"},
+        {"name": "category",  "type": "select", "values": ["antenatal","newborn","postnatal","child"]},
+        {"name": "is_published","type": "bool"}
+      ],
+      "baseline_rules": {
+        "listRule":   "is_published = true && category = 'antenatal'",
+        "viewRule":   "is_published = true && category = 'antenatal'",
+        "createRule": null,
+        "updateRule": null,
+        "deleteRule": null
+      }
+    },
+    {
+      "name": "bookmarks",
+      "type": "base",
+      "required_fields": [
+        {"name": "user",    "type": "relation", "target": "users",    "maxSelect": 1},
+        {"name": "article", "type": "relation", "target": "articles", "maxSelect": 1}
+      ],
+      "baseline_rules": {
+        "listRule":   "@request.auth.id != '' && user = @request.auth.id && article.category = 'antenatal'",
+        "viewRule":   "@request.auth.id != '' && user = @request.auth.id",
+        "createRule": "@request.auth.id != '' && @request.body.user = @request.auth.id",
+        "updateRule": null,
+        "deleteRule": "@request.auth.id != '' && user = @request.auth.id"
+      }
+    },
+    {
+      "name": "notifications",
+      "type": "base",
+      "required_fields": [
+        {"name": "user",      "type": "relation", "target": "users", "maxSelect": 1},
+        {"name": "type",      "type": "text"},
+        {"name": "deep_link", "type": "text",     "required": false}
+      ],
+      "baseline_rules": {
+        "listRule":   "@request.auth.id != '' && user = @request.auth.id",
+        "viewRule":   "@request.auth.id != '' && user = @request.auth.id",
+        "createRule": null,
+        "updateRule": null,
+        "deleteRule": null
+      }
+    },
+    {
+      "name": "consent_records",
+      "type": "base",
+      "required_fields": [
+        {"name": "user",    "type": "relation", "target": "users", "maxSelect": 1},
+        {"name": "version", "type": "number"},
+        {"name": "accepted_at", "type": "date"}
+      ],
+      "baseline_rules": {
+        "listRule":   null,
+        "viewRule":   "@request.auth.id != '' && user = @request.auth.id",
+        "createRule": null,
+        "updateRule": null,
+        "deleteRule": null
+      }
+    },
+    {
+      "name": "otp_requests",
+      "type": "base",
+      "required_fields": [
+        {"name": "user",       "type": "relation", "target": "users", "maxSelect": 1},
+        {"name": "status",     "type": "select", "values": ["pending","verified","expired","failed"]},
+        {"name": "expires_at", "type": "date"}
+      ],
+      "baseline_rules": {
+        "listRule":   null,
+        "viewRule":   null,
+        "createRule": null,
+        "updateRule": null,
+        "deleteRule": null
+      }
+    },
+    {
+      "name": "newborn_enrollments",
+      "type": "base",
+      "required_fields": [
+        {"name": "user", "type": "relation", "target": "users", "maxSelect": 1}
+      ],
+      "baseline_rules": {
+        "listRule":   null,
+        "viewRule":   null,
+        "createRule": null,
+        "updateRule": null,
+        "deleteRule": null
+      },
+      "note": "Schema may not exist in production yet — T-LEGACY-NB_ENROLL marks UNRESOLVED if absent"
+    }
+  ],
+
+  "migration_content_rules": [
+    "No records in migration files",
+    "No production credentials",
+    "No provider tokens",
+    "No production SMTP secrets",
+    "No personal data",
+    "No copied pb_data",
+    "Local-only mock-provider configuration only",
+    "All test-only additions clearly labelled in migration comments"
+  ]
+}

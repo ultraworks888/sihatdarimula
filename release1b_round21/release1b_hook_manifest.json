@@ -1,0 +1,111 @@
+{
+  "manifest_version": "1",
+  "round": "21",
+  "status": "DRAFTED — hook routes resolved from source inspection of pb_hooks/*.pb.js",
+  "inspection_provenance": {
+    "hooks_inspected": [
+      "pb_hooks/emergency_users_hardening.pb.js",
+      "pb_hooks/auth_whatsapp_otp.pb.js",
+      "pb_hooks/push_broadcast.pb.js",
+      "pb_hooks/whatsapp.pb.js"
+    ],
+    "other_hooks_found": [
+      "pb_hooks/meta_whatsapp.pb.js",
+      "pb_hooks/whatsapp_webhook.pb.js",
+      "pb_hooks/lms_whatsapp.pb.js",
+      "pb_hooks/export.pb.js",
+      "pb_hooks/forgot_password_whatsapp.pb.js",
+      "pb_hooks/ai_chat.pb.js",
+      "pb_hooks/push_reminders.pb.js",
+      "pb_hooks/analytics.pb.js"
+    ],
+    "note": "Only the four hooks directly relevant to R21 test scope were fully inspected. Other hooks require separate analysis."
+  },
+  "hooks": {
+    "emergency_users_hardening": {
+      "file": "emergency_users_hardening.pb.js",
+      "type": "record-hook (onRecordUpdateRequest)",
+      "registered_routes": "NONE",
+      "probe_type": "behavioral",
+      "probe_proof": "T-FIELD-ROLE-REJECT (§24) — ordinary user PATCH role=admin → expect 403",
+      "behavior": "Blocks role changes in users collection PATCH requests for non-superadmin callers. Logs blocked events without PII. $app.save() calls bypass this hook.",
+      "r21_notes": [
+        "D21-9: probe classified as behavioral (no HTTP route); previously UNRESOLVED",
+        "Does not block phone_verified (not in scope). Guard hook handles that.",
+        "NSU check: e.auth.collection().name === '_superusers'"
+      ]
+    },
+    "auth_whatsapp_otp": {
+      "file": "auth_whatsapp_otp.pb.js",
+      "type": "route-hook",
+      "routes": {
+        "request": { "method": "POST", "path": "/api/auth/request-whatsapp-otp" },
+        "verify":  { "method": "POST", "path": "/api/auth/verify-whatsapp-otp" }
+      },
+      "behavior": "Generates 6-digit OTP, stores in phone_otps (is_used=false), sends via Meta Cloud API. On verify: marks is_used=true.",
+      "phone_otps_fields_used": ["phone", "code", "expires_at", "is_used"],
+      "isolated_env": "NOT deployed. OTP test adapter replaces it for isolated testing."
+    },
+    "push_broadcast": {
+      "file": "push_broadcast.pb.js",
+      "type": "route-hook + cron",
+      "routes": {
+        "create":  { "method": "POST", "path": "/api/admin/push-broadcast" },
+        "cancel":  { "method": "POST", "path": "/api/admin/push-broadcast/cancel" }
+      },
+      "cron": { "name": "push_broadcast_scheduler", "schedule": "*/5 * * * *" },
+      "probe_type": "route",
+      "probe_route": "/api/admin/push-broadcast",
+      "probe_method": "POST",
+      "probe_auth": "admin",
+      "probe_body": "{}",
+      "probe_expected": "400 (title and message are required — never reaches OneSignal)",
+      "probe_not_404_means": "Hook registered and route accessible",
+      "external_dependency": "OneSignal API (not contacted by safe probe with empty body)",
+      "behavior": "Broadcasts push notifications via OneSignal. Requires onesignal_app_id and onesignal_api_key in lms_settings."
+    },
+    "whatsapp": {
+      "file": "whatsapp.pb.js",
+      "type": "route-hook",
+      "routes": {
+        "get_config":    { "method": "GET",    "path": "/api/admin/whatsapp/config" },
+        "save_config":   { "method": "POST",   "path": "/api/admin/whatsapp/config" },
+        "delete_config": { "method": "DELETE", "path": "/api/admin/whatsapp/config" }
+      },
+      "probe_type": "route",
+      "probe_route": "/api/admin/whatsapp/config",
+      "probe_method": "GET",
+      "probe_auth": "admin",
+      "probe_expected": "200 (returns configured/unconfigured status) or 401/403 if auth issue",
+      "probe_not_404_means": "Hook registered and route accessible",
+      "external_dependency": "NONE for GET config probe (reads lms_settings only)",
+      "behavior": "Manages WhatsApp credential config (phone_number_id, access_token, api_version) in lms_settings."
+    }
+  },
+  "otp_test_adapter": {
+    "file": "release1b_otp_test_adapter.pb.js",
+    "type": "LOCAL TEST ONLY — NOT FOR PRODUCTION",
+    "deployed_in_isolated_env": true,
+    "replaces_in_isolated_env": "auth_whatsapp_otp.pb.js",
+    "routes": {
+      "control":    { "method": "POST", "path": "/api/test/otp-control",         "auth": "NSU" },
+      "rate_count": { "method": "GET",  "path": "/api/test/otp-rate-count",       "auth": "NSU" },
+      "request":    { "method": "POST", "path": "/api/auth/request-whatsapp-otp", "auth": "none" },
+      "verify":     { "method": "POST", "path": "/api/auth/verify-whatsapp-otp",  "auth": "none" }
+    },
+    "modes": ["success", "send_failed", "pending_send", "db_fail_request", "db_fail_verify"],
+    "lifecycle": "pending_send → (local provider fixture) → sent_active (success) | send_failed (failure) → consumed (after verify)",
+    "phone_field_used": "adapter_status (temporary isolated-env field)",
+    "production_field_used": "is_used (set to true on consume)",
+    "loopback_enforcement": "127.x.x.x or [::1]:port or ::1 only (D21-8: correct IPv6 parsing)",
+    "synthetic_phone_pattern": "+601_R21TEST_<4-16 decimal digits>",
+    "external_calls": "NONE"
+  },
+  "phone_verified_guard_hook": {
+    "name": "release1b_r21_phone_verified_guard.pb.js",
+    "type": "inline (written by harness to isolated hooks dir; not a package artifact)",
+    "blocks": "All HTTP PATCH setting phone_verified (superadmin, admin, ordinary user, unauthenticated)",
+    "permits": "NSU token (collection().name === '_superusers')",
+    "authorized_write_path": "Internal $app.save() from OTP adapter verify route (bypasses HTTP hook)"
+  }
+}

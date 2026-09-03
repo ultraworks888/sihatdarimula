@@ -1,0 +1,245 @@
+#!/usr/bin/env zsh
+# ============================================================
+# release1b_round20_checksums.sha256
+# Self-computing integrity verifier for the R20 package.
+#
+# DESIGN: This file is a zsh script, not a static data file,
+# because SHA-256 cannot be pre-computed in the tool environment
+# (no shell execution capability). The operator runs it once to
+# produce the .lock file, then re-runs it to verify.
+#
+# OPERATOR WORKFLOW:
+#   Step 1 — Compute and lock (run ONCE after receiving package):
+#     chmod +x release1b_round20_checksums.sha256
+#     cd release1b_round20
+#     ./release1b_round20_checksums.sha256 --compute
+#
+#   Step 2 — Verify at any time:
+#     cd release1b_round20
+#     ./release1b_round20_checksums.sha256 --verify
+#
+#   The lock file (release1b_round20_checksums.lock) contains the
+#   computed SHA-256 and byte count for each covered artifact.
+#   Archive this lock file separately from the package.
+#
+# EXIT CODES:
+#   0 — all artifacts verified or locked successfully
+#   1 — any mismatch, missing file, extra file, duplicate, or
+#       malformed record (fail-closed, nonzero on any error)
+#
+# SELF-INTEGRITY:
+#   This script's own SHA-256 and byte count must be recorded
+#   by the operator after --compute:
+#     shasum -a 256 release1b_round20_checksums.sha256
+#     wc -c < release1b_round20_checksums.sha256
+#   Retain these values separately. They are not included in the
+#   lock file (non-recursive design).
+# ============================================================
+
+setopt NO_UNSET PIPE_FAIL
+
+readonly _LOCK_FILE="release1b_round20_checksums.lock"
+
+# The nine covered artifacts (ordered; no duplicates).
+# This script itself is NOT listed (non-recursive).
+readonly -a _COVERED=(
+  "release1b_cp0.zsh"
+  "release1b_otp_test_adapter.pb.js"
+  "release1b_cp0_manifest.json"
+  "release1b_schema_manifest.json"
+  "release1b_hook_manifest.json"
+  "release1b_test_manifest.json"
+  "release1b_operator_instructions.md"
+  "release1b_round20_review.md"
+)
+
+# Fail with a message and exit nonzero.
+_fail() { print "[FAIL] $*" >&2; exit 1 }
+
+# Validate the covered list: no duplicates, correct count.
+_validate_covered_list() {
+  local -A seen=()
+  local name
+  for name in "${_COVERED[@]}"; do
+    [[ -n "${seen[$name]:-}" ]] && _fail "Duplicate filename in covered list: ${name}"
+    seen[$name]=1
+  done
+  (( ${#_COVERED[@]} == 8 )) || _fail "Covered list has ${#_COVERED[@]} entries; expected 8"
+}
+
+# Compute SHA-256 and byte count for a single file.
+# Outputs: "SHA256HASH BYTES FILENAME"
+_compute_one() {
+  local fname="$1"
+  [[ -f "$fname" ]] || _fail "File not found: ${fname}"
+  # Reject symlinks.
+  local lstat; lstat=$(python3 -c "
+import os,sys,stat
+try:
+    s=os.lstat(sys.argv[1]); print('SYMLINK' if stat.S_ISLNK(s.st_mode) else 'OK')
+except Exception as e: print('ERROR:'+str(e))
+" -- "$fname" 2>/dev/null)
+  [[ "$lstat" == "SYMLINK" ]] && _fail "File is a symlink: ${fname}"
+  [[ "$lstat" == ERROR* ]]    && _fail "lstat error for ${fname}: ${lstat}"
+  local sha; sha=$(shasum -a 256 "$fname" 2>/dev/null | awk '{print $1}')
+  [[ -z "$sha" ]] && _fail "shasum failed for ${fname}"
+  [[ ! "$sha" =~ ^[a-f0-9]{64}$ ]] && _fail "shasum output invalid for ${fname}: ${sha}"
+  local bytes; bytes=$(wc -c < "$fname" 2>/dev/null | tr -d ' ')
+  [[ -z "$bytes" || ! "$bytes" =~ ^[0-9]+$ ]] && _fail "wc -c failed for ${fname}"
+  (( bytes > 0 )) || _fail "File is empty: ${fname}"
+  printf '%s  %s  %s\n' "$sha" "$bytes" "$fname"
+}
+
+# Parse a lock file record; validate fields.
+_parse_lock_record() {
+  local line="$1"
+  # Skip comments and blank lines.
+  [[ "$line" =~ ^[[:space:]]*(#.*)?$ ]] && return 0
+  local sha bytes fname rest
+  read -r sha bytes fname rest <<< "$line"
+  # Reject placeholder values.
+  [[ "$sha" == OPERATOR* || "$sha" == NEEDS* || -z "$sha" ]] && \
+    _fail "Placeholder or empty SHA-256 in lock record: ${line}"
+  [[ "$bytes" == OPERATOR* || "$bytes" == NEEDS* || -z "$bytes" ]] && \
+    _fail "Placeholder or empty bytes in lock record: ${line}"
+  # Validate SHA-256 format.
+  [[ ! "$sha" =~ ^[a-f0-9]{64}$ ]] && \
+    _fail "Malformed SHA-256 in lock record: ${sha}"
+  # Validate bytes format.
+  [[ ! "$bytes" =~ ^[0-9]+$ ]] && \
+    _fail "Malformed byte count in lock record: ${bytes}"
+  # Validate filename.
+  [[ -z "$fname" ]] && _fail "Missing filename in lock record: ${line}"
+  [[ -n "$rest" ]] && _fail "Extra fields in lock record: ${line}"
+  print "${sha}:${bytes}:${fname}"
+}
+
+# --compute: compute hashes and write lock file.
+_do_compute() {
+  print "=== R20 checksum compute ==="
+  _validate_covered_list
+
+  # Check all covered files exist first.
+  local fname
+  for fname in "${_COVERED[@]}"; do
+    [[ -f "$fname" ]] || _fail "Missing artifact before compute: ${fname}"
+  done
+
+  local lock_tmp="${_LOCK_FILE}.tmp.$$"
+  {
+    printf '# Release 1B Round 20 — computed checksums\n'
+    printf '# Format: SHA256  BYTES  FILENAME\n'
+    printf '# Generated: %s\n' "$(date -u '+%Y-%m-%dT%H:%M:%SZ')"
+    printf '# Self-integrity: compute SHA-256 and bytes of this .sha256 script separately.\n'
+    printf '#   shasum -a 256 release1b_round20_checksums.sha256\n'
+    printf '#   wc -c < release1b_round20_checksums.sha256\n'
+    printf '\n'
+    for fname in "${_COVERED[@]}"; do
+      _compute_one "$fname"
+    done
+  } > "$lock_tmp" 2>/dev/null || {
+    rm -f "$lock_tmp"; _fail "Lock file write failed"
+  }
+  chmod 600 "$lock_tmp"
+  mv "$lock_tmp" "$_LOCK_FILE" || { rm -f "$lock_tmp"; _fail "mv to lock file failed" }
+  print "[OK] Lock file written: ${_LOCK_FILE}"
+  print ""
+  print "=== Computed values ==="
+  cat "$_LOCK_FILE"
+  print ""
+  print "=== Self-integrity (record this separately) ==="
+  shasum -a 256 "release1b_round20_checksums.sha256" 2>/dev/null || true
+  printf 'bytes: '; wc -c < "release1b_round20_checksums.sha256" 2>/dev/null | tr -d ' '; printf '\n'
+}
+
+# --verify: compare current hashes against lock file.
+_do_verify() {
+  print "=== R20 checksum verify ==="
+  _validate_covered_list
+
+  [[ -f "$_LOCK_FILE" ]] || _fail "Lock file not found: ${_LOCK_FILE}. Run --compute first."
+
+  # Parse lock file: collect expected values, detect duplicates.
+  local -A lock_sha=() lock_bytes=()
+  local -a lock_order=()
+  local line
+  while IFS= read -r line; do
+    local parsed; parsed=$(_parse_lock_record "$line") || exit 1
+    [[ -z "$parsed" ]] && continue
+    local sha="${parsed%%:*}"; local rest="${parsed#*:}"
+    local bytes="${rest%%:*}"; local fname="${rest#*:}"
+    [[ -n "${lock_sha[$fname]:-}" ]] && _fail "Duplicate filename in lock file: ${fname}"
+    lock_sha[$fname]="$sha"
+    lock_bytes[$fname]="$bytes"
+    lock_order+=("$fname")
+  done < "$_LOCK_FILE"
+
+  # Verify lock file covers exactly the expected artifacts.
+  (( ${#lock_order[@]} == ${#_COVERED[@]} )) || \
+    _fail "Lock file has ${#lock_order[@]} entries; expected ${#_COVERED[@]}"
+
+  local fname
+  for fname in "${_COVERED[@]}"; do
+    [[ -n "${lock_sha[$fname]:-}" ]] || _fail "Artifact missing from lock file: ${fname}"
+  done
+  for fname in "${lock_order[@]}"; do
+    local in_covered=0
+    local c; for c in "${_COVERED[@]}"; do [[ "$c" == "$fname" ]] && in_covered=1 && break; done
+    (( in_covered )) || _fail "Extra artifact in lock file not in covered list: ${fname}"
+  done
+
+  # Verify each artifact.
+  local all_ok=1
+  for fname in "${_COVERED[@]}"; do
+    local expected_sha="${lock_sha[$fname]}"
+    local expected_bytes="${lock_bytes[$fname]}"
+
+    [[ -f "$fname" ]] || { print "[FAIL] Missing: ${fname}" >&2; all_ok=0; continue }
+
+    local lstat; lstat=$(python3 -c "
+import os,sys,stat
+try:
+    s=os.lstat(sys.argv[1]); print('SYMLINK' if stat.S_ISLNK(s.st_mode) else 'OK')
+except Exception as e: print('ERROR:'+str(e))
+" -- "$fname" 2>/dev/null)
+    [[ "$lstat" == "SYMLINK" ]] && { print "[FAIL] Symlink: ${fname}" >&2; all_ok=0; continue }
+    [[ "$lstat" == ERROR* ]]    && { print "[FAIL] lstat error: ${fname} ${lstat}" >&2; all_ok=0; continue }
+
+    local actual_sha; actual_sha=$(shasum -a 256 "$fname" 2>/dev/null | awk '{print $1}')
+    local actual_bytes; actual_bytes=$(wc -c < "$fname" 2>/dev/null | tr -d ' ')
+
+    local sha_ok=0 bytes_ok=0
+    [[ "$actual_sha" == "$expected_sha" ]]     && sha_ok=1
+    [[ "$actual_bytes" == "$expected_bytes" ]] && bytes_ok=1
+
+    if (( sha_ok && bytes_ok )); then
+      print "[OK] ${fname}"
+    else
+      (( sha_ok ))   || print "[FAIL] ${fname}: SHA-256 mismatch" >&2
+      (( bytes_ok )) || print "[FAIL] ${fname}: bytes mismatch (expected ${expected_bytes} got ${actual_bytes})" >&2
+      all_ok=0
+    fi
+  done
+
+  if (( all_ok )); then
+    print ""; print "=== VERIFY RESULT: ALL ${#_COVERED[@]} ARTIFACTS OK ==="
+    exit 0
+  else
+    print ""; print "=== VERIFY RESULT: FAIL ===" >&2
+    exit 1
+  fi
+}
+
+# Entry point.
+case "${1:-}" in
+  --compute) _do_compute ;;
+  --verify)  _do_verify ;;
+  *)
+    print "Usage: $0 --compute | --verify" >&2
+    print "  --compute  Compute hashes for all covered artifacts; write lock file." >&2
+    print "  --verify   Compare current hashes against locked values; exit nonzero on any failure." >&2
+    print "" >&2
+    print "This script must be run from the release1b_round20/ directory." >&2
+    exit 1
+    ;;
+esac

@@ -1,0 +1,51 @@
+{
+  "manifest_version": "1",
+  "round": "22",
+  "test_groups": {
+    "injection": {
+      "T-INJECT-CREATE-ANON-ADMIN":  "RUNNABLE",
+      "T-INJECT-CREATE-ANON-SADMIN": "RUNNABLE",
+      "T-INJECT-CREATE-VERIFIED":    "RUNNABLE",
+      "T-INJECT-CREATE-PHONE-VER":   "RUNNABLE",
+      "T-INJECT-CREATE-UNEXPECTED":  "RUNNABLE — queries users collection (D22-8 fix)"
+    },
+    "phone_guard": {
+      "T-PHONE-ORD-NO-PATCH-PHONE":     "RUNNABLE (D22-9)",
+      "T-PHONE-ORD-NO-PATCH-PV":        "RUNNABLE",
+      "T-PHONE-MIXED-FIELD-REJECT":     "RUNNABLE (D22-9) — phone+name: all fields rejected",
+      "T-PHONE-ADMIN-NO-PV-ON-ADMIN":   "RUNNABLE (D22-10)",
+      "T-PHONE-NSU-RECOVERY":           "RUNNABLE (D22-10) — sets phone+pv together",
+      "T-PHONE-NSU-PV-NO-PHONE":        "RUNNABLE (D22-10) — pv=true without phone → 400",
+      "T-PHONE-OTP-AUTH-ANON":          "RUNNABLE (D22-5) — anonymous → 401",
+      "T-PHONE-OTP-AUTH-ADMIN":         "RUNNABLE (D22-5) — admin → 403",
+      "T-PHONE-OTP-AUTH-SADMIN":        "RUNNABLE (D22-5) — superadmin → 403",
+      "T-PHONE-OTP-ATOMIC-LINK":        "RUNNABLE (D22-3,4) — blank phone start; TX-3 sets both atomically",
+      "T-PHONE-OTP-ROLLBACK":           "RUNNABLE (D22-3) — TX-3 rollback; OTP stays active; phone unchanged"
+    },
+    "otp_lifecycle": {
+      "T-OTP-PENDING-CREATE-FAIL":  "RUNNABLE (D22-11) — TX-1 rollback; no record",
+      "T-OTP-FLOW":                 "RUNNABLE (D22-6) — TX lifecycle: pending→active→consumed",
+      "T-OTP-DB-FAIL-REQUEST":      "RUNNABLE (D22-11) — TX-2 rollback; no sent_active"
+    },
+    "concurrency": {
+      "T-CONCURRENCY-AUTH":         "RUNNABLE",
+      "T-CONCURRENCY-OTP-SEND":     "RUNNABLE (D22-12) — DB state; observed evidence of serialization",
+      "T-CONCURRENCY-OTP-VERIFY":   "RUNNABLE (D22-12) — concurrent verify; at most 1 TX-3 commits",
+      "T-OTP-RATE-LIMIT-POLICY":    "DEFERRED-MANDATORY — policy not defined",
+      "T-OTP-IDEMPOTENCY-POLICY":   "DEFERRED-MANDATORY — policy not defined",
+      "T-CONCURRENCY-IDEMPOTENCY-POST": "DEFERRED-MANDATORY — endpoint not defined"
+    },
+    "hook_smoke": {
+      "T-HOOK-SMOKE-emergency_hardening": "RUNNABLE — behavioral",
+      "T-HOOK-SMOKE-push_broadcast":      "RUNNABLE — POST /api/admin/push-broadcast; empty body → 400",
+      "T-HOOK-SMOKE-whatsapp":            "RUNNABLE — GET /api/admin/whatsapp/config"
+    },
+    "content": {
+      "T-ART-ANON-POLICY":         "RUNNABLE (SCORED) — predicted FAIL (listRule public)",
+      "T-ART-ANTENATAL-AUTH-ONLY": "RUNNABLE (SCORED)",
+      "T-ART-ANTENATAL-VIS":       "RUNNABLE",
+      "T-ART-CATEGORY-FILTER":     "RUNNABLE"
+    }
+  },
+  "transaction_note": "D22-2: $app.runInTransaction() confirmed in PocketBase v0.29.3 JS API. Adapter uses it. All prior 'no transaction support' claims removed."
+}

@@ -1,0 +1,14 @@
+# Release 1B Round 22 — Integrity Manifest
+# Format: <SHA256>  <FILENAME> (shasum -a 256 --check compatible)
+# Covers 8 artifacts. This file does not cover itself or release1b_r22_checksums.py.
+#
+# GENERATE (once, from release1b_round22/ directory):
+#   python3 release1b_r22_checksums.py --generate
+#
+# VERIFY:
+#   python3 release1b_r22_checksums.py --verify
+#   — or —
+#   shasum -a 256 --check release1b_r22_checksums.sha256
+#
+# This file is populated by the generation step above.
+# SHA256 values cannot be pre-computed by the AI tool environment.

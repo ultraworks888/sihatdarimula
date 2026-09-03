@@ -1,0 +1,48 @@
+{
+  "manifest_version": "1",
+  "round": "22",
+  "status": "DRAFTED — corrected from R21; phone_otps schema verified against migration source",
+  "phone_otps_production_schema": {
+    "migration": "1783946967_add_phone_otps_d039.js",
+    "fields": {
+      "phone":      { "type": "text", "required": true, "max": 20, "note": "Stores candidate phone. NOT set in users.phone until verified." },
+      "code":       { "type": "text", "required": true, "max": 10 },
+      "expires_at": { "type": "date" },
+      "is_used":    { "type": "bool", "note": "Production field. set to true on consume." },
+      "created":    { "type": "autodate" }
+    },
+    "temporary_field_r22": {
+      "adapter_status": { "type": "select", "values": ["pending_send","sent_active","send_failed","consumed"], "source": "9999999999_r22_future_schema.js — ISOLATED ENV ONLY" }
+    }
+  },
+  "users_schema": {
+    "key_fields": {
+      "phone":          { "type": "text", "note": "Only written by OTP adapter TX-3 or NSU emergency recovery" },
+      "phone_verified": { "type": "bool", "source": "9999999999_r22_future_schema.js — ISOLATED ENV ONLY" }
+    },
+    "access_rules": {
+      "createRule": "\"\" — public; S-1 gap (T-INJECT-CREATE-ANON-ADMIN tests this)",
+      "updateRule": "id = @request.auth.id || @request.auth.role = 'superadmin'"
+    }
+  },
+  "security_findings": {
+    "S-1": { "title": "Role Injection on Create", "severity": "HIGH", "status": "RUNNABLE in §28.5" },
+    "S-2": { "title": "phone_verified absent in production", "severity": "MEDIUM", "status": "Tested in isolated env via future-schema migration" },
+    "S-3": { "title": "Committed plaintext credential in seed migration", "severity": "CRITICAL", "status": "INCIDENT-RESPONSE — separate from CP0. Harness excludes seed migration." }
+  },
+  "articles_finding": {
+    "listRule": "\"\" — PUBLIC",
+    "required_fix": "listRule = \"@request.auth.id != ''\"",
+    "predicted_test": "T-ART-ANON-POLICY: FAIL (scored)"
+  },
+  "transaction_api": {
+    "reference": "https://pocketbase.io/docs/js-records/#transaction",
+    "api": "$app.runInTransaction((txApp) => { ... })",
+    "note": "D22-2: false claim removed. Adapter uses runInTransaction for TX-1, TX-2, TX-3."
+  },
+  "hook_routes": {
+    "push_broadcast": { "POST": "/api/admin/push-broadcast", "POST_cancel": "/api/admin/push-broadcast/cancel", "cron": "*/5 * * * *" },
+    "whatsapp":       { "GET": "/api/admin/whatsapp/config", "POST": "/api/admin/whatsapp/config", "DELETE": "/api/admin/whatsapp/config" },
+    "emergency_hardening": { "type": "onRecordUpdateRequest", "collection": "users", "behavioral": true }
+  }
+}

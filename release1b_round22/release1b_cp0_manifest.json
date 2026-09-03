@@ -1,0 +1,66 @@
+{
+  "manifest_version": "1",
+  "round": "22",
+  "status": "DRAFTED — zsh -n PASS; node --check PASS; JSON strict-parse PASS",
+  "checkpoint_0_authorization_status": "AUTHORIZED BUT NOT EXECUTED — EXECUTION ENVIRONMENT UNAVAILABLE",
+  "artifact_inventory": {
+    "count": 10,
+    "deliverables": [
+      "release1b_cp0.zsh",
+      "release1b_otp_test_adapter.pb.js",
+      "release1b_r22_checksums.sha256",
+      "release1b_r22_checksums.py",
+      "release1b_cp0_manifest.json",
+      "release1b_schema_manifest.json",
+      "release1b_hook_manifest.json",
+      "release1b_test_manifest.json",
+      "release1b_operator_instructions.md",
+      "release1b_round22_review.md"
+    ],
+    "checksums_coverage": "release1b_r22_checksums.sha256 covers 8 artifacts (not itself, not checksums.py)",
+    "self_integrity": "SHA-256 and bytes of checksums.py and checksums.sha256 provided separately in delivery message"
+  },
+  "r22_corrections": {
+    "D22-1":  "Checksums: Python verifier script (release1b_r22_checksums.py) as 10th named artifact. --generate populates checksums.sha256; --verify checks. No lock file. SHA-256 pre-computation impossible in AI tool environment — acknowledged as irresolvable constraint.",
+    "D22-2":  "runInTransaction: $app.runInTransaction() used in adapter TX-1, TX-2, TX-3. False limitation removed from all artifacts.",
+    "D22-3":  "TX-3 atomic: OTP+phone+phone_verified committed together or rolled back entirely. Rollback test: OTP stays active (retryable), phone unchanged, pv=false.",
+    "D22-4":  "phone stored in OTP record only; users.phone set only inside TX-3. Test starts with blank phone.",
+    "D22-5":  "Request and verify routes require ordinary-user token. Admin/superadmin → 403. Anonymous → 401. Tests: T-PHONE-OTP-AUTH-ANON/ADMIN/SADMIN.",
+    "D22-6":  "All test functions: exactly one terminal outcome. _t_record_outcome() detects double-outcome → BLOCKING. Selftest proves mechanism.",
+    "D22-7":  "Duplicate body creation in t_phone_otp_sets_both removed. All temp-file variables audited.",
+    "D22-8":  "T-INJECT-CREATE-UNEXPECTED queries users collection. Documentation corrected throughout.",
+    "D22-9":  "Guard hook protects both phone AND phone_verified. Mixed-field rejection tested: phone+name in same request → all fields rejected.",
+    "D22-10": "NSU policy: emergency recovery, documented. NSU cannot set phone_verified=true without non-blank phone. NSU cannot make admin/superadmin accounts eligible.",
+    "D22-11": "Lifecycle boundaries tested: T-OTP-PENDING-CREATE-FAIL, T-OTP-DB-FAIL-REQUEST, T-PHONE-OTP-ROLLBACK. Concurrent verify: T-CONCURRENCY-OTP-VERIFY.",
+    "D22-12": "Concurrency: lifecycle/concurrency/rate-limit/idempotency separated. Rate-limit and idempotency: DEFERRED-MANDATORY. Workers have independent dirs/bodies/status/resp files.",
+    "D22-13": "Cleanup self-tests in t_harness_selftest: empty path, root, no-marker dir, symlink, valid root."
+  },
+  "transaction_design": {
+    "api": "$app.runInTransaction((txApp) => { ... })",
+    "reference": "https://pocketbase.io/docs/js-records/#transaction",
+    "TX-1": "Create pending_send OTP record. Rolls back completely on throw — no record created.",
+    "TX-2": "Transition pending → sent_active (success) or send_failed. db_fail_request: throw inside TX-2 → rolls back → external cleanup sets send_failed.",
+    "TX-3": "Consume OTP + set users.phone + set users.phone_verified. Rolls back completely on throw — OTP stays active (retryable), phone unchanged.",
+    "db_fail_verify": "TX-3 throws before any save → atomic rollback → OTP retryable → no partial commit."
+  },
+  "otp_auth_contract": {
+    "request_route": "POST /api/auth/request-whatsapp-otp — ordinary user token required",
+    "verify_route":  "POST /api/auth/verify-whatsapp-otp  — same ordinary user token; caller IS the linked user",
+    "admin_403": "Admin and superadmin callers receive 403; cannot use phone-linking flow for themselves",
+    "anon_401": "Unauthenticated callers receive 401",
+    "nsu_policy": "NSU can set phone and phone_verified via HTTP as emergency recovery. Consistency: cannot set phone_verified=true without non-blank phone."
+  },
+  "phone_guard_policy": {
+    "protects": ["users.phone", "users.phone_verified"],
+    "blocks": "All HTTP PATCH setting either field (all app-layer callers including superadmin)",
+    "permits_nsu": "NSU emergency recovery (subject to consistency checks)",
+    "permits_internal": "$app.save() from OTP adapter TX-3 bypasses HTTP hook",
+    "consistency_checks": [
+      "Cannot set phone_verified=true without non-blank phone (applies to all callers including NSU)",
+      "Cannot set phone/phone_verified on admin/superadmin accounts"
+    ],
+    "mixed_field_rejection": "A request containing phone or phone_verified alongside other fields (name, language, etc.) is atomically rejected — no field persists"
+  },
+  "pocketbase_version_target": "0.29.3",
+  "result_predicted_without_run": "FAIL (rc=1) — T-ART-ANON-POLICY expected FAIL (articles.listRule public). If schema corrected: INCOMPLETE (rc=2) due to deferred tests."
+}

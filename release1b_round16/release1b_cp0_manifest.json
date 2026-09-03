@@ -1,0 +1,107 @@
+{
+  "manifest_version": "1",
+  "artifact": "release1b_cp0.zsh",
+  "round": "16",
+  "status": "DRAFTED",
+  "basis": "Round 15 narrowly corrected",
+  "r15_authoritative_checksums": {
+    "note": "Recorded from Round 16 static validation review",
+    "release1b_cp0.zsh":                  { "bytes": 128945, "sha256": "349ecd1f398ff796d35bf184535f1f787cdae610deaad4625693a0c44b9dbc0f" },
+    "release1b_cp0_manifest.json":        { "bytes": 6239,   "sha256": "8bc4207f097b5836eba4e2e7f345c0c3c503b361908ff1b37908bb163be14ef5" },
+    "release1b_schema_manifest.json":     { "bytes": 8397,   "sha256": "b470991e0deb5fe4925e781abab30522f6d900c27e52352837bce319c23857ed" },
+    "release1b_hook_manifest.json":       { "bytes": 3927,   "sha256": "fc492e714b0cdafbe6b7378c7a55cc2db80d61ab19d8f5052e6dc8a620a601ee" },
+    "release1b_test_manifest.json":       { "bytes": 9527,   "sha256": "a148308c9fc654adb4d94b22521e7aea7a5f869f3976513d13b3353a31c0a85f" },
+    "release1b_round15_review.md":        { "bytes": 10635,  "sha256": "dc7ca38b8c8a78c35b2d907187956b5eac20064dea56a6ba5f117d393baaa2b2" },
+    "release1b_round15_checksums.sha256": { "bytes": 1603,   "sha256": "4429e951a262f2d5b3bc4e7d3f03774fe43c405b699026383bf8cf22fa39cfee" }
+  },
+  "integrity_design": "non-recursive: release1b_round16_checksums.sha256 covers all other R16 artifacts but not itself",
+  "validations_performed": {
+    "strict_json_parsing": "NOT PERFORMED — tool-interface limitation",
+    "zsh_syntax_check": "NOT PERFORMED — tool-interface limitation; script not executed in any mode",
+    "byte_counting": "NOT PERFORMED — PENDING_FINAL_STATIC_VALIDATION",
+    "sha256_hashing": "NOT PERFORMED — PENDING_FINAL_STATIC_VALIDATION",
+    "visual_inspection": "PERFORMED",
+    "or_true_grep": "PERFORMED — 2 executable || true confirmed: dd wipe (BENIGN) and kill-wait (BENIGN)"
+  },
+  "execution_confirmation": {
+    "script_executed": false,
+    "package_check_run": false,
+    "harness_check_run": false,
+    "preflight_run": false,
+    "run_mode_invoked": false,
+    "network_contact": false,
+    "service_started": false,
+    "database_touched": false,
+    "production_contact": false
+  },
+  "r16_changes_from_r15": {
+    "1_pb_trap_cleanup_termination_confirmed": {
+      "finding": "R15 cleared RELEASE1B_PB_PID=0 immediately after wait without confirming the process had stopped",
+      "fix": "After wait, poll kill -0 for up to 5 seconds (10 x 0.5s). If process still alive: send SIGKILL, set CLEANUP_FAILURE=1. Then clear PID.",
+      "policy": "CLEANUP_FAILURE — PocketBase still running after kill is a cleanup failure, not a halt"
+    },
+    "2_concurrency_worker_exit_codes": {
+      "finding": "R15 dropped worker exit codes (bare :); result classification could not distinguish helper crash from functional test failure",
+      "fix": "Subshell uses explicit exit $rc to propagate pbj_http.py exit code. Parent captures all worker_rcs via wait array. Four outcome categories: (1) worker nonzero -> t_harness_err; (2) result file absent -> t_harness_err; (3) result file malformed -> t_harness_err; (4) functional wrong status -> t_fail",
+      "policy": "harness errors and test failures independently tracked and reported"
+    },
+    "3_cp0_run_stage_policies": {
+      "finding": "pb_apply_schema_migrations, pb_verify_hook_directory, pb_cleanup_normal, pb_scan_and_export_report returned nonzero without consequences",
+      "fix": "Explicit policy comment and enforcement for every pb_run_stage call. pb_apply_schema_migrations: halt. pb_verify_hook_directory: gated by HALT_DEPENDENTS (t_blocking sets it). pb_cleanup_normal: || CLEANUP_FAILURE=1. pb_scan_and_export_report: || CLEANUP_FAILURE=1. Hook phase skipped if HALT_DEPENDENTS set after schema stage.",
+      "policies": {
+        "pb_preflight_ports": "HALT",
+        "pb_apply_schema_migrations": "HALT (R16 change: was silently continued in R15)",
+        "pb_start_pocketbase": "HALT",
+        "pb_start_mailhog": "CONTINUE — optional; t_unresolved if unavailable",
+        "pb_create_local_superuser": "HALT",
+        "pb_verify_schema": "CONTINUE — t_blocking sets HALT_DEPENDENTS",
+        "pb_verify_hook_directory": "CONTINUE — gated on HALT_DEPENDENTS; t_blocking sets it on failure",
+        "pb_install_hook_verified per hook": "CONTINUE — t_unresolved/t_blocking recorded",
+        "pb_hook_smoke_matrix": "CONTINUE — t_fail/t_unresolved recorded",
+        "pb_create_test_user ordinary/admin/superadmin": "HALT",
+        "pb_create_legacy_fixture": "CONTINUE — t_harness_err recorded; tests gate on file existence",
+        "pb_setup_alias_group": "CONTINUE — t_harness_err recorded; tests gate on file existence",
+        "all test groups": "CONTINUE — failures conclusively recorded by t_fail/t_blocking/t_harness_err",
+        "pb_cleanup_normal": "SET CLEANUP_FAILURE (R16 change: was ignored in R15)",
+        "pb_scan_and_export_report": "SET CLEANUP_FAILURE (R16 change: was ignored in R15)"
+      }
+    },
+    "4_final_exit_condition": {
+      "finding": "R15 final exit checked only T_BLOCKING and T_FAIL; T_HARNESS_ERR and CLEANUP_FAILURE not checked",
+      "fix": "if (( T_BLOCKING > 0 || T_FAIL > 0 || T_HARNESS_ERR > 0 || CLEANUP_FAILURE > 0 )): return 1",
+      "unresolved_deferred_treatment": "T_UNRESOLVED and T_DEFERRED are informational. They represent items requiring NEEDS-EXTERNAL prerequisites. They do not affect exit status. This is explicitly documented in cp0_run output."
+    }
+  },
+  "or_true_r16_inventory": {
+    "total_executable": 2,
+    "benign_retained": [
+      {
+        "location": "pb_wipe_secret_file",
+        "rationale": "dd may return non-zero on partial write; rm -f below unconditionally removes the file"
+      },
+      {
+        "location": "pb_trap_cleanup",
+        "rationale": "wait returns non-zero for a kill'd process; expected behavior; PB termination now confirmed independently via kill -0 polling loop"
+      }
+    ]
+  },
+  "defect_classifications": {
+    "11": "IMPL — all failure propagation defects resolved in R16: non-benign || true eliminated (R15), orchestration stage policies enforced (R16), cleanup/report failure propagated (R16), final exit checks all four conditions (R16)",
+    "16": "IMPL-MD — interceptor baseline for alias_intercept is NEEDS-EXTERNAL",
+    "21": "IMPL — E4/E6/E8 corrected in R15, preserved in R16"
+  },
+  "defect_count_impl": 22,
+  "defect_count_impl_md": 7,
+  "defect_count_needs_external": 2,
+  "defect_number_mapping": {
+    "27": "actor-role rule",
+    "28": "package integrity / HOOK_PROBE_ROUTES key-set match",
+    "29": "path disclosure sanitization in report",
+    "30": "non-atomic export replaced with atomic rename"
+  },
+  "defect_1_note": "Double-invocation not reproduced in R13 delivered artifact. Single-invocation guard retained.",
+  "script_basename": "release1b_cp0.zsh",
+  "output_directory": "release1b_round16/",
+  "r13_r14_r15_preservation": "All prior-round artifacts unchanged",
+  "checkpoint_0_authorization": "NOT AUTHORIZED — --authorize-cp0 flag guard remains in main()"
+}

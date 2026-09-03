@@ -1,0 +1,107 @@
+{
+  "manifest_version": "1",
+  "round": "19",
+  "status": "DRAFTED — statically validated",
+  "checkpoint_0_authorization_status": "AUTHORIZED BUT NOT EXECUTED — EXECUTION ENVIRONMENT UNAVAILABLE",
+  "authorization_note": "Checkpoint 0 was authorized by the operator. The Coderick AI tool environment lacks shell execution, process management, and external network download capability required to run the harness. No PocketBase v0.29.3 instance was started. No runtime results were observed. The operator must run the harness per release1b_operator_instructions.md.",
+  "r19_basis": "Round 18 package corrected per operator findings. Nine R18 blocking findings addressed. Six additional R19 corrections applied (schema names, field names, hook inventory, role injection, inspection provenance). Emergency security finding S-1/S-3 added. OTP mock adapter designed. Operator instructions produced.",
+  "r18_authoritative_checksums": {
+    "note": "R18 static values, authoritative as delivered",
+    "release1b_cp0.zsh":              { "bytes": 145131, "sha256": "ad5277a66628437dad0caf78b063dd5538154ea5cf7dbddc29b350ac10ba472f" },
+    "release1b_cp0_manifest.json":    { "bytes": 8381,   "sha256": "8504d7703e866e3489ed687bcf60880ab0b78b6f0fcb9248172fb86781b3a0f8" },
+    "release1b_schema_manifest.json": { "bytes": 8380,   "sha256": "1e496d540acf784ab667532f2d5e5fc014f0d9b8ee5ffd174795e893fb9120c6" },
+    "release1b_hook_manifest.json":   { "bytes": 5627,   "sha256": "8d718f3884d9adb6821c7d7cd59451ad356bad4c795b62d47fabd347c211b785" },
+    "release1b_test_manifest.json":   { "bytes": 10923,  "sha256": "381452713eacfbb68abc8f3ec40266e68b4eb2ef9e8700e18707bbacc1360846" },
+    "release1b_round18_review.md":    { "bytes": 10743,  "sha256": "88a7f7ca1fbdbb2bb391a3eecb40e51d64299fd5644af64ebbf8fed87460ec89" },
+    "release1b_round18_checksums.sha256": { "bytes": 1252, "sha256": "5befdb6d0030a0c1465ed72bc227ebde2d027afe7641f9b48477fcbf3a7e1a47" }
+  },
+  "r19_corrections": {
+    "C-1": {
+      "finding": "Status 'AUTHORIZED BUT NOT EXECUTED — EXECUTION ENVIRONMENT UNAVAILABLE' not stated in R18",
+      "action": "Header of harness, manifests, and review document updated to state this status. Checkpoint 0 is not described as 'unauthorized'."
+    },
+    "C-2": {
+      "finding": "Inspection provenance not established in R18. R18 called the schema 'live' and 'actual' without clarifying which instance was inspected.",
+      "action": "All documents now state: pb_get_schema inspected the Coderick-managed workspace PocketBase (v0.28.4), populated by the same project migration files. This is NOT the production instance at app.sihatdarimula.my. No request reached production. Findings are schema-level from migration source inspection, not observed v0.29.3 runtime behavior."
+    },
+    "C-3": {
+      "finding": "Schema manifest used speculative collection names: growth_records, activities, immunizations, progress_notes, newborn_enrollments.",
+      "action": "Schema manifest rewritten. Actual names: growth_logs, activity_logs, immunisations (British), enrollments. progress_notes removed entirely (not present). newborn_enrollments removed (not present). Added: nutrition_logs, wellbeing_logs, notification_preferences, notification_queue, phone_otps, push_subscriptions, lesson_progress. All field names verified against migration source files."
+    },
+    "C-4": {
+      "finding": "children.parent used throughout R18. Actual relation field is children.user.",
+      "action": "All test bodies, CRUD functions, legacy fixtures, and schema references updated to use 'user' not 'parent'."
+    },
+    "C-5": {
+      "finding": "articles.type with values antenatal/postnatal/general was assumed. Actual field is articles.category with values growth/nutrition/activity/wellbeing/immunisation/pregnancy/general. articles.is_pregnancy bool is the actual antenatal gate.",
+      "action": "Schema manifest corrected. Test manifest updated. T-ART-ANON-DENIED removed as a scored test (articles are currently publicly readable — policy decision required). T-ART-ANON-POLICY added (policy decision required). T-ART-CATEGORY-FILTER added."
+    },
+    "C-6": {
+      "finding": "Hook inventory included onboarding and alias_intercept, neither of which exists in pb_hooks/.",
+      "action": "HOOK_SRC_PATHS updated: removed onboarding, removed alias_intercept. Added: emergency_hardening (emergency_users_hardening.pb.js), auth_whatsapp_otp (auth_whatsapp_otp.pb.js). Keys now: emergency_hardening, auth_whatsapp_otp, push_broadcast, whatsapp."
+    },
+    "C-7": {
+      "finding": "T-ANON-INJECT treated as a single test; classified as a prediction (not a verified finding); no persisted-record verification.",
+      "action": "Replaced by five separate EMERGENCY BLOCKING tests: T-INJECT-CREATE-ANON-ADMIN, T-INJECT-CREATE-ANON-SADMIN, T-INJECT-CREATE-VERIFIED, T-INJECT-CREATE-EMAIL-VIS, T-INJECT-CREATE-UNEXPECTED. Each verifies the persisted record via native superuser read, not just the HTTP response code."
+    },
+    "C-8": {
+      "finding": "T-ART-ANON-DENIED classified as a predicted FAIL. Was not separated from verified static findings.",
+      "action": "Reclassified as T-ART-ANON-POLICY — a policy decision required item, not a scored pass/fail. The static finding (articles.listRule is public) is documented separately from whether this is the intended policy."
+    },
+    "C-9": {
+      "finding": "OTP concurrency section still referenced Mailhog in certain code paths despite R18 redesign.",
+      "action": "All Mailhog references removed. HOOK_OTP_PHONE_ROUTE resolved to /api/auth/request-whatsapp-otp. Local OTP test adapter designed (/api/test/otp-control). T-OTP-FLOW redesigned to use phone_otps table + NSU token for OTP retrieval (no real Meta call needed). Adapter deployment instructions added to operator instructions."
+    },
+    "C-10": {
+      "finding": "T-FIELD-PHONE-REJECT and T-FIELD-ALIAS-REJECT tested for phone_verified and is_alias_account fields that do not exist in the users schema.",
+      "action": "Both tests reclassified NEEDS-EXTERNAL in test manifest. Legacy fixture creation updated to not send phone_verified (field absent). Tests cannot run until fields are added to schema."
+    },
+    "C-11": {
+      "finding": "Seed migration 1782898775 contains hardcoded plaintext credentials (email and password).",
+      "action": "Documented as S-3 (CRITICAL) in schema manifest and review. Harness never reads or uses seed credentials. Operator action required: verify production credential was rotated."
+    },
+    "C-12": {
+      "finding": "HOOK_OTP_PHONE_ROUTE was UNRESOLVED in R18. It can be resolved from static inspection.",
+      "action": "HOOK_OTP_PHONE_ROUTE = /api/auth/request-whatsapp-otp (from auth_whatsapp_otp.pb.js line 21). Pre-filled in R19 constants."
+    }
+  },
+  "defect_disposition_r19": {
+    "defect_11": { "title": "Shutdown zombie / kill -0 reliability", "status": "IMPL", "note": "Watchdog pattern from R18 preserved. No changes in R19." },
+    "defect_16": { "title": "alias_intercept baseline", "status": "NEEDS-EXTERNAL — HOOK ABSENT", "note": "No alias_intercept.pb.js exists. Hook removed from inventory. Defect reclassified: alias interception is either not implemented or NEEDS-EXTERNAL." },
+    "defect_23": {
+      "T-CONCURRENCY-AUTH": "IMPL",
+      "T-CONCURRENCY-OTP-SEND": "IMPL-MD — HOOK_OTP_PHONE_ROUTE resolved; adapter designed; rate-limit invariants NEEDS-EXTERNAL",
+      "T-CONCURRENCY-IDEMPOTENCY-POST": "IMPL-MD — no idempotency hook identified"
+    },
+    "defect_27": { "title": "Actor role rule", "status": "IMPL — emergency_users_hardening hook covers PATCH", "note": "CREATE path gap is new finding S-1, not previously tracked defect" },
+    "defect_28": { "title": "Package integrity", "status": "IMPL — hook SHA256 NEEDS-EXTERNAL", "note": "HOOK_SRC_PATHS keys updated in R19" },
+    "defect_29": { "title": "Path disclosure", "status": "IMPL", "note": "No changes in R19" },
+    "defect_30": { "title": "Non-atomic export", "status": "IMPL", "note": "No changes in R19" }
+  },
+  "impl_counts": { "IMPL": 21, "IMPL_MD": 8, "NEEDS_EXTERNAL": 4 },
+  "or_true_inventory": [
+    { "site": 1, "location": "pb_wipe_secret_file — dd wipe", "classification": "BENIGN-RETAINED", "note": "dd may return non-zero on partial write; file removed regardless by rm -f" },
+    { "site": 2, "location": "pb_trap_cleanup — watchdog reap", "classification": "BENIGN", "note": "Watchdog may have already exited; wait failure is safe" }
+  ],
+  "inspection_provenance_summary": {
+    "schema_source": "pb_get_schema tool (Coderick-managed workspace PocketBase v0.28.4)",
+    "migration_source": "pb_migrations/ directory, read-only",
+    "hook_source": "pb_hooks/ directory, read-only",
+    "production_instance": "NOT contacted — no request to app.sihatdarimula.my",
+    "v029_behavior": "NOT verified — behavior on v0.29.3 is predicted from migration source, not observed"
+  },
+  "pocketbase_version_target": "0.29.3",
+  "pocketbase_version_inspected": "0.28.4 (Coderick workspace)",
+  "result_without_harness_run": "AUTHORIZED BUT NOT EXECUTED — no rc observed",
+  "result_predicted_if_run_against_r19_schema": "RESULT: INCOMPLETE (rc=2) — mandatory deferred items remain; policy decisions outstanding. Would be FAIL (rc=1) if T-INJECT-CREATE-ANON-ADMIN confirms role injection on create.",
+  "deliverables_r19": [
+    "release1b_cp0.zsh",
+    "release1b_cp0_manifest.json",
+    "release1b_schema_manifest.json",
+    "release1b_hook_manifest.json",
+    "release1b_test_manifest.json",
+    "release1b_operator_instructions.md",
+    "release1b_round19_review.md",
+    "release1b_round19_checksums.sha256"
+  ]
+}

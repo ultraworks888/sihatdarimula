@@ -1,0 +1,106 @@
+{
+  "manifest_version": "1",
+  "round": "15",
+  "status": "DRAFTED",
+  "basis": "R14 release1b_test_manifest.json with authorized_exclusions corrected for E4/E6/E8",
+  "r15_corrections_vs_r14": [
+    "E4/E6/E8 authorized exclusion meanings corrected to historical values (defect-21)"
+  ],
+  "counts": {
+    "mandatory_total": 47,
+    "mandatory_deferred_count": 11,
+    "authorized_exclusion_count": 3
+  },
+  "mandatory_items": [
+    { "id": "T-SU-CREATE-AUTH", "description": "Native superuser created and authenticated", "stage": "infrastructure", "blocking": true },
+    { "id": "T-SU-DELETE", "description": "Native superuser deleted during cleanup", "stage": "cleanup" },
+    { "id": "T-PREFLIGHT-PORTS", "description": "Ports 8090, 8025, 1025 free before start", "stage": "infrastructure", "blocking": true },
+    { "id": "T-SCHEMA-MIGRATIONS-COPY", "description": "Migration files copied to isolated dir (R15: fail-closed)", "stage": "infrastructure" },
+    { "id": "T-SCHEMA-COL-users", "description": "users collection exists", "stage": "schema" },
+    { "id": "T-SCHEMA-COL-children", "description": "children collection exists", "stage": "schema" },
+    { "id": "T-SCHEMA-COL-growth_records", "description": "growth_records collection exists", "stage": "schema" },
+    { "id": "T-SCHEMA-COL-activities", "description": "activities collection exists", "stage": "schema" },
+    { "id": "T-SCHEMA-COL-immunizations", "description": "immunizations collection exists", "stage": "schema" },
+    { "id": "T-SCHEMA-COL-progress_notes", "description": "progress_notes collection exists", "stage": "schema" },
+    { "id": "T-SCHEMA-COL-articles", "description": "articles collection exists", "stage": "schema" },
+    { "id": "T-SCHEMA-COL-bookmarks", "description": "bookmarks collection exists", "stage": "schema" },
+    { "id": "T-SCHEMA-COL-notifications", "description": "notifications collection exists", "stage": "schema" },
+    { "id": "T-SCHEMA-COL-newborn_enrollments", "description": "newborn_enrollments collection exists", "stage": "schema" },
+    { "id": "T-SCHEMA-COL-courses", "description": "courses collection exists", "stage": "schema" },
+    { "id": "T-HOOKDIR-VERIFY", "description": "Hooks directory exists with 700 permissions", "stage": "hooks" },
+    { "id": "T-CRUD-CH-LIST", "description": "Authenticated user can list own children", "stage": "crud" },
+    { "id": "T-CRUD-CH-VIEW", "description": "Authenticated user can view own child by ID", "stage": "crud" },
+    { "id": "T-CRUD-CH-VIEW-CROSS", "description": "User cannot view another user's child (404)", "stage": "crud" },
+    { "id": "T-CRUD-CH-CREATE", "description": "Authenticated user can create child with own parent ID", "stage": "crud" },
+    { "id": "T-CRUD-CH-CREATE-CROSS", "description": "User cannot create child with another user's parent ID (400)", "stage": "crud" },
+    { "id": "T-CRUD-GR-CREATE", "description": "Authenticated user can create growth record for own child", "stage": "crud" },
+    { "id": "T-FIELD-ROLE-REJECT", "description": "Ordinary user cannot set role=admin on own record (400)", "stage": "field-protection" },
+    { "id": "T-FIELD-PHONE-REJECT", "description": "Ordinary user cannot set phone_verified=true (400)", "stage": "field-protection" },
+    { "id": "T-FIELD-ALIAS-REJECT", "description": "Ordinary user cannot set is_alias_account=true (400)", "stage": "field-protection" },
+    { "id": "T-FILE-AUTH-1", "description": "Anonymous cannot list progress_notes (401/403)", "stage": "file-auth" },
+    { "id": "T-FILE-AUTH-2", "description": "Authenticated user can view own progress notes (200)", "stage": "file-auth" },
+    { "id": "T-FILE-AUTH-3", "description": "Authenticated user cannot view another user's progress notes (empty list)", "stage": "file-auth" },
+    { "id": "T-FILE-AUTH-4", "description": "Admin can list all progress notes (200)", "stage": "file-auth" },
+    { "id": "T-FILE-AUTH-6", "description": "Protected file URL without token returns 404/401", "stage": "file-auth" },
+    { "id": "T-ALIAS-ENUM-1", "description": "Auth with alias account email + wrong pw returns 400", "stage": "alias-enum" },
+    { "id": "T-ALIAS-ENUM-2", "description": "Auth with real non-alias email + wrong pw returns 400", "stage": "alias-enum" },
+    { "id": "T-ALIAS-ENUM-3", "description": "Auth with nonexistent email + wrong pw returns 400", "stage": "alias-enum" },
+    { "id": "T-ALIAS-ENUM-4", "description": "Auth with malformed email returns 400", "stage": "alias-enum" },
+    { "id": "T-ALIAS-CASE5-TIMING", "description": "Timing analysis between alias and non-alias auth paths", "stage": "alias-enum" },
+    { "id": "T-ACTOR-ROLE-RULE", "description": "Defect-27: role escalation rejected (400)", "stage": "auth" },
+    { "id": "T-ANON-READ", "description": "Anonymous cannot read users collection (401/403)", "stage": "auth" },
+    { "id": "T-AUTH-NO-OTHERS-READ", "description": "Authenticated user cannot view another user's record (404)", "stage": "auth" },
+    { "id": "T-ADMIN-ESCALATION", "description": "Admin cannot promote self to superadmin (400)", "stage": "admin" },
+    { "id": "T-ADMIN-NO-PROMOTE", "description": "Admin cannot promote another user to superadmin (400/403)", "stage": "admin" },
+    { "id": "T-SADMIN-LIST-USERS", "description": "Superadmin can list all users (200)", "stage": "admin" },
+    { "id": "T-NSU-BYPASS", "description": "Native superuser bypasses collection rules (200)", "stage": "admin" },
+    { "id": "T-USER-NAME-UPDATE", "description": "Ordinary user can update own name (200)", "stage": "user-ops" },
+    { "id": "T-USER-LANG-UPDATE", "description": "Ordinary user can update own language (200)", "stage": "user-ops" },
+    { "id": "T-ART-ANTENATAL-VIS", "description": "Antenatal articles visible to authenticated users (200)", "stage": "content" },
+    { "id": "T-ART-ANON-DENIED", "description": "Anonymous cannot access articles (401/403)", "stage": "content" },
+    { "id": "T-ANON-INJECT", "description": "Server-side allowlist rejects injected privileged fields", "stage": "injection" },
+    { "id": "T-API-DECLARATIONS", "description": "API route semantics verified", "stage": "api" },
+    { "id": "T-STATIC-ROUTE-INVENTORY", "description": "Static route inventory: health and auth-methods respond", "stage": "api" },
+    { "id": "T-RULE-APPLY-RESTORE", "description": "Apply rule change, verify effect, restore, verify restoration", "stage": "rules" },
+    { "id": "T-CONCURRENCY-AUTH", "description": "Concurrent wrong-password attempts all return 400", "stage": "concurrency" }
+  ],
+  "mandatory_deferred_items": [
+    { "id": "T-FILE-AUTH-5", "description": "User can upload file to own progress note", "reason": "Requires operator-provided binary test asset (NEEDS-EXTERNAL)" },
+    { "id": "T-FILE-AUTH-7", "description": "User can delete own file attachment", "reason": "Depends on T-FILE-AUTH-5 (NEEDS-EXTERNAL)" },
+    { "id": "T-NSU-HOOK-BEHAVIOR", "description": "Native superuser behavior when intercepted by hook", "reason": "Hook source required to define NSU intercept semantics (NEEDS-EXTERNAL)" },
+    { "id": "T-EMAIL-LIFECYCLE", "description": "Complete email lifecycle test via Mailhog", "reason": "Requires Mailhog (docker); deferred if docker not present" },
+    { "id": "T-EMAIL-VERIFY-REQ", "description": "Email verification required for protected resource", "reason": "Requires Mailhog for token delivery" },
+    { "id": "T-EMAIL-CHANGE-FLOW", "description": "Email change flow including token delivery", "reason": "Requires Mailhog" },
+    { "id": "T-OTP-FLOW", "description": "OTP request and auth flow", "reason": "Requires Mailhog; OTP must be enabled on users collection" },
+    { "id": "T-AVATAR-LIFECYCLE", "description": "Avatar upload and deletion lifecycle", "reason": "Requires operator-provided binary image asset (NEEDS-EXTERNAL)" },
+    { "id": "T-PROXY-IP-INVESTIGATE", "description": "Proxy IP pass-through investigation", "reason": "Requires external network fixture (NEEDS-EXTERNAL)" },
+    { "id": "T-HOOK-SMOKE-*", "description": "Hook smoke matrix", "reason": "HOOK_PROBE_ROUTES must be configured (NEEDS-EXTERNAL)" },
+    { "id": "T-PKG-ARCHIVE-HASH", "description": "PocketBase archive hash verification", "reason": "PB_EXPECTED_SHA256 values not set (NEEDS-EXTERNAL)" }
+  ],
+  "authorized_exclusions": [
+    {
+      "id": "E4-EMAIL-CHANGE-LIFECYCLE",
+      "description": "Production email-change lifecycle diagnostic",
+      "reason": "Cannot be replicated in isolated harness without production SMTP and verified-email state.",
+      "r14_correction": "R14 incorrectly labeled this E4-PROXY-IP. Corrected in R15."
+    },
+    {
+      "id": "E6-OTP-REACHABILITY",
+      "description": "Production OTP endpoint reachability",
+      "reason": "OTP delivery requires production SMTP relay. Smoke-tested for endpoint existence only.",
+      "r14_correction": "R14 incorrectly labeled this E6-PUSH-BROADCAST. Corrected in R15."
+    },
+    {
+      "id": "E8-WARN-LOG-OBSERVABILITY",
+      "description": "Production WARN-log observability",
+      "reason": "Structured log inspection requires production log aggregation pipeline not present in isolated harness.",
+      "r14_correction": "R14 incorrectly labeled this E8-WHATSAPP. Corrected in R15."
+    }
+  ],
+  "defect_number_mapping": {
+    "27": "actor-role rule (T-ACTOR-ROLE-RULE)",
+    "28": "package integrity / HOOK_PROBE_ROUTES key-set match",
+    "29": "path disclosure sanitization",
+    "30": "non-atomic export"
+  }
+}

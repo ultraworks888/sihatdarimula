@@ -1,0 +1,54 @@
+# Release 1B Round 21 — Integrity Manifest
+# Format: SHA256<two spaces>FILENAME (shasum -a 256 --check compatible)
+# Non-recursive: this file does not cover itself.
+#
+# IMPORTANT: SHA-256 values must be computed after receiving the package.
+# The AI tool environment has no shell execution capability and cannot
+# compute SHA-256 hashes. Byte counts from the write tool are provided
+# as supplementary evidence in the delivery message.
+#
+# To populate this file (run once, from the release1b_round21/ directory):
+#
+#   cd release1b_round21
+#   shasum -a 256 \
+#     release1b_cp0.zsh \
+#     release1b_otp_test_adapter.pb.js \
+#     release1b_cp0_manifest.json \
+#     release1b_schema_manifest.json \
+#     release1b_hook_manifest.json \
+#     release1b_test_manifest.json \
+#     release1b_operator_instructions.md \
+#     release1b_round21_review.md \
+#     > release1b_r21_checksums.sha256
+#
+# To verify (any time after population):
+#
+#   cd release1b_round21
+#   shasum -a 256 --check release1b_r21_checksums.sha256
+#
+# The checksums file's own SHA-256 and byte count are provided
+# separately in the delivery message.
+#
+# File count: 8 (all R21 artifacts except this checksums file).
+# Expected output from --check: 8 lines, all "OK".
+#
+# A verifier script is not provided separately; shasum --check
+# is the standard mechanism and exits nonzero on any mismatch.
+#
+# Byte counts observed at write time (supplementary; verify via wc -c):
+#   release1b_cp0.zsh                  122061
+#   release1b_otp_test_adapter.pb.js    14474
+#   release1b_cp0_manifest.json         (see delivery message)
+#   release1b_schema_manifest.json      (see delivery message)
+#   release1b_hook_manifest.json        (see delivery message)
+#   release1b_test_manifest.json        (see delivery message)
+#   release1b_operator_instructions.md  (see delivery message)
+#   release1b_round21_review.md         (see delivery message)
+SHA256_COMPUTE_REQUIRED  release1b_cp0.zsh
+SHA256_COMPUTE_REQUIRED  release1b_otp_test_adapter.pb.js
+SHA256_COMPUTE_REQUIRED  release1b_cp0_manifest.json
+SHA256_COMPUTE_REQUIRED  release1b_schema_manifest.json
+SHA256_COMPUTE_REQUIRED  release1b_hook_manifest.json
+SHA256_COMPUTE_REQUIRED  release1b_test_manifest.json
+SHA256_COMPUTE_REQUIRED  release1b_operator_instructions.md
+SHA256_COMPUTE_REQUIRED  release1b_round21_review.md

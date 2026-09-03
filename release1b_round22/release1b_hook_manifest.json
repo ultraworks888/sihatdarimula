@@ -1,0 +1,47 @@
+{
+  "manifest_version": "1",
+  "round": "22",
+  "hooks": {
+    "emergency_hardening": {
+      "probe_type": "behavioral",
+      "proof": "T-FIELD-ROLE-REJECT — ordinary PATCH role=admin → 403"
+    },
+    "push_broadcast": {
+      "probe_type": "route",
+      "method": "POST",
+      "route": "/api/admin/push-broadcast",
+      "safe_probe": "empty body → 400 (title/message required; never reaches OneSignal)"
+    },
+    "whatsapp": {
+      "probe_type": "route",
+      "method": "GET",
+      "route": "/api/admin/whatsapp/config",
+      "safe_probe": "read config → 200 or 401/403; no external contact"
+    }
+  },
+  "otp_test_adapter": {
+    "routes": {
+      "control":    { "method": "POST", "path": "/api/test/otp-control",          "auth": "NSU", "loopback": true },
+      "rate_count": { "method": "GET",  "path": "/api/test/otp-rate-count",        "auth": "NSU", "loopback": true },
+      "request":    { "method": "POST", "path": "/api/auth/request-whatsapp-otp",  "auth": "ordinary-user token", "loopback": true },
+      "verify":     { "method": "POST", "path": "/api/auth/verify-whatsapp-otp",   "auth": "ordinary-user token", "loopback": true }
+    },
+    "modes": ["success","send_failed","pending_send","db_fail_request","db_fail_verify","pending_create_fail"],
+    "transaction_design": {
+      "TX-1": "Create pending_send OTP record atomically",
+      "TX-2": "Transition pending → sent_active or send_failed",
+      "TX-3": "Consume OTP + set users.phone + set users.phone_verified atomically"
+    },
+    "d22_2_correction": "runInTransaction used for all multi-step DB operations. False limitation removed."
+  },
+  "phone_guard_hook": {
+    "name": "release1b_r22_phone_verified_guard.pb.js",
+    "type": "inline (written by harness to isolated hooks dir)",
+    "protects": ["users.phone", "users.phone_verified"],
+    "consistency_rules": [
+      "phone_verified=true requires non-blank phone (all callers)",
+      "admin/superadmin accounts: cannot be made eligible"
+    ],
+    "nsu_policy": "NSU permitted as documented emergency recovery; subject to consistency rules"
+  }
+}

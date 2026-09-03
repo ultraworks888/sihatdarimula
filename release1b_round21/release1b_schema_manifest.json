@@ -1,0 +1,107 @@
+{
+  "manifest_version": "1",
+  "round": "21",
+  "status": "DRAFTED — corrected from R20; phone_otps schema verified against migration source",
+  "inspection_provenance": {
+    "source_type": "Coderick-managed workspace PocketBase v0.28.4 + pb_hooks/ + pb_migrations/ static inspection",
+    "production_host": "app.sihatdarimula.my — NOT contacted",
+    "caveat": "Schema-level findings only. No runtime behavior observed."
+  },
+  "r21_schema_corrections": {
+    "phone_otps_status_field": {
+      "r19_r20_claim": "phone_otps has a status select field with values [pending_send, sent/active, send_failed]",
+      "actual_schema": "phone_otps has is_used (bool), NOT a status select. Verified from migration 1783946967_add_phone_otps_d039.js and auth_whatsapp_otp.pb.js hook source.",
+      "action": "Schema manifest corrected. OTP adapter revised to use is_used (bool). adapter_status added via temporary isolated-env migration only."
+    }
+  },
+  "security_findings": {
+    "S-1": {
+      "title": "Role Injection on Create",
+      "severity": "HIGH",
+      "source": "1782897956_add_admin_roles_and_permissions_8689.js",
+      "finding": "users.createRule is empty string (public). No hook intercepts onRecordCreateRequest.",
+      "status": "UNVERIFIED — T-INJECT-CREATE-ANON-ADMIN on isolated v0.29.3 required",
+      "r21_addition": "T-INJECT-CREATE-PHONE-VER added: create with phone_verified=true injection also tested"
+    },
+    "S-2": {
+      "title": "phone_verified and is_alias_account absent",
+      "severity": "MEDIUM",
+      "status": "ADDRESSED IN R21: phone_verified added via temporary schema migration; guard hook installed; full lifecycle tested in §28.6"
+    },
+    "S-3": {
+      "title": "Committed plaintext credential",
+      "severity": "CRITICAL",
+      "source": "1782898775_seed_superadmin_user_4fd7.js",
+      "status": "INCIDENT-RESPONSE REQUIRED — separate from CP0. Harness excludes this migration."
+    }
+  },
+  "collections": {
+    "users": {
+      "type": "auth",
+      "key_fields": {
+        "name":           { "type": "text", "max": 200 },
+        "avatar":         { "type": "file", "max_select": 1 },
+        "phone":          { "type": "text", "max": 20 },
+        "language":       { "type": "select", "values": ["en","ms","zh"] },
+        "role":           { "type": "select", "values": ["user","admin","superadmin"] },
+        "phone_verified": { "type": "bool", "source": "TEMPORARY ISOLATED-ENV MIGRATION 9999999999_r21_future_schema.js — NOT in production schema" }
+      },
+      "access_rules": {
+        "createRule": "\"\" — public; S-1 gap",
+        "updateRule": "id = @request.auth.id || @request.auth.role = 'superadmin'"
+      },
+      "phone_verified_guard": {
+        "mechanism": "Inline PocketBase hook (onRecordUpdateRequest) written by harness to isolated hooks dir",
+        "blocks": "All HTTP PATCH setting phone_verified (any app-layer caller)",
+        "permits": "NSU HTTP PATCH; internal $app.save() bypasses hook",
+        "authorized_write_path": "OTP adapter verify-whatsapp-otp route (internal $app.save)"
+      }
+    },
+    "phone_otps": {
+      "type": "base",
+      "source_migration": "1783946967_add_phone_otps_d039.js",
+      "actual_fields": {
+        "phone":      { "type": "text", "required": true, "max": 20 },
+        "code":       { "type": "text", "required": true, "max": 10 },
+        "expires_at": { "type": "date" },
+        "is_used":    { "type": "bool", "note": "Production field. is_used=false = active; is_used=true = used." },
+        "created":    { "type": "autodate" }
+      },
+      "r20_error": "R20 manifest incorrectly described a 'status' select field. This does not exist in the production schema.",
+      "r21_temporary_field": {
+        "adapter_status": { "type": "select", "values": ["pending_send","sent_active","send_failed","consumed"], "source": "TEMPORARY ISOLATED-ENV MIGRATION 9999999999_r21_future_schema.js — NOT in production schema" }
+      },
+      "access_rules": { "all": null, "note": "All rules null (superuser-only)" },
+      "production_hook": {
+        "file": "auth_whatsapp_otp.pb.js",
+        "invalidation": "sets is_used=true on all existing OTPs for the phone before writing new one",
+        "verification": "finds OTP with phone, code, is_used=false; marks is_used=true on success"
+      }
+    },
+    "articles": {
+      "type": "base",
+      "key_fields": {
+        "category":     { "type": "select", "values": ["growth","nutrition","activity","wellbeing","immunisation","pregnancy","general"] },
+        "is_pregnancy": { "type": "bool", "note": "Antenatal gate field" }
+      },
+      "access_rules": {
+        "listRule": "\"\" — PUBLIC; FAILS antenatal authentication requirement",
+        "required_fix": "listRule = \"@request.auth.id != ''\""
+      }
+    },
+    "children": {
+      "type": "base",
+      "key_fields": {
+        "user": { "type": "relation", "collection": "users", "note": "Field is 'user', NOT 'parent'" }
+      }
+    },
+    "push_broadcasts": {
+      "type": "base",
+      "note": "Referenced by push_broadcast.pb.js hook. Fields: title, message, status, sent_by, target, url, segment_config, scheduled_at, recipient_count, onesignal_id."
+    },
+    "lms_settings": {
+      "type": "base",
+      "note": "Key-value store used by push_broadcast.pb.js and whatsapp.pb.js hooks. Keys: onesignal_app_id, onesignal_api_key, whatsapp_phone_number_id, whatsapp_access_token, whatsapp_api_version."
+    }
+  }
+}

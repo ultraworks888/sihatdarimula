@@ -1,0 +1,101 @@
+{
+  "manifest_version": "1",
+  "round": "18",
+  "status": "DRAFTED",
+  "basis": "Updated from R17: HOOK_OTP_PHONE_ROUTE and HOOK_OTP_MOCK_CONTROL_ROUTE added; OTP concurrency semantics clarified",
+  "defect_16_classification": "IMPL-MD — alias_intercept interceptor baseline is NEEDS-EXTERNAL",
+  "defect_23_r18_classification": {
+    "T-CONCURRENCY-AUTH": "IMPL — implemented with per-worker dirs and pre-worker exit-status classification",
+    "T-CONCURRENCY-OTP-SEND": "IMPL-MD — MANDATORY-DEFERRED; targets phone/WhatsApp OTP hook (not email OTP); HOOK_OTP_PHONE_ROUTE and HOOK_OTP_MOCK_CONTROL_ROUTE must be supplied before execution",
+    "T-CONCURRENCY-IDEMPOTENCY-POST": "IMPL-MD — MANDATORY-DEFERRED and implementation incomplete; endpoint contract NEEDS-EXTERNAL"
+  },
+  "hooks": {
+    "onboarding": {
+      "description": "Patient onboarding hook.",
+      "src_path": "UNRESOLVED__NEEDS_EXTERNAL",
+      "sha256": "UNRESOLVED__NEEDS_EXTERNAL",
+      "probe_route": "UNRESOLVED__NEEDS_EXTERNAL",
+      "probe_method": "GET",
+      "expected_status_after_removal": "404"
+    },
+    "push_broadcast": {
+      "description": "Push notification broadcast hook.",
+      "src_path": "UNRESOLVED__NEEDS_EXTERNAL",
+      "sha256": "UNRESOLVED__NEEDS_EXTERNAL",
+      "probe_route": "UNRESOLVED__NEEDS_EXTERNAL",
+      "probe_method": "POST",
+      "expected_status_after_removal": "404"
+    },
+    "whatsapp": {
+      "description": "WhatsApp integration hook.",
+      "src_path": "UNRESOLVED__NEEDS_EXTERNAL",
+      "sha256": "UNRESOLVED__NEEDS_EXTERNAL",
+      "probe_route": "UNRESOLVED__NEEDS_EXTERNAL",
+      "probe_method": "POST",
+      "expected_status_after_removal": "404"
+    },
+    "alias_intercept": {
+      "description": "Alias account intercept hook. Intercepts auth-with-password for alias accounts.",
+      "src_path": "UNRESOLVED__NEEDS_EXTERNAL",
+      "sha256": "UNRESOLVED__NEEDS_EXTERNAL",
+      "probe_route": "UNRESOLVED__NEEDS_EXTERNAL",
+      "probe_method": "POST",
+      "expected_status_after_removal": "UNRESOLVED__NEEDS_EXTERNAL__interceptor_baseline"
+    }
+  },
+  "phone_otp_hook": {
+    "description": "Release 1B phone/WhatsApp OTP endpoint. Required by T-CONCURRENCY-OTP-SEND.",
+    "HOOK_OTP_PHONE_ROUTE": {
+      "status": "UNRESOLVED__NEEDS_EXTERNAL",
+      "note": "Route registered by the hook package for phone/WhatsApp OTP requests. Must NOT be /api/collections/users/request-otp (that is PocketBase email OTP and is not a substitute)."
+    },
+    "HOOK_OTP_MOCK_CONTROL_ROUTE": {
+      "status": "UNRESOLVED__NEEDS_EXTERNAL",
+      "note": "Local-only route provided by the hook for resetting and inspecting mock-provider state without sending a real delivery. Used as the non-mutating availability probe for T-CONCURRENCY-OTP-SEND."
+    },
+    "endpoint_auth_policy": {
+      "status": "UNRESOLVED__NEEDS_EXTERNAL",
+      "options": [
+        "authenticated legacy phone-linking endpoint: each worker needs a unique single-use auth configuration",
+        "separately versioned anonymous phone-first endpoint: anonymous workers only; endpoint must be locally enabled and explicitly not production"
+      ],
+      "note": "Must be specified by the hook manifest before T-CONCURRENCY-OTP-SEND can determine per-worker auth configuration."
+    },
+    "rate_limit_invariants": {
+      "status": "UNRESOLVED__NEEDS_EXTERNAL",
+      "required_before_test": [
+        "initial database and rate-limit state (from mock-provider reset)",
+        "whether probe is read-only (must be; real send probe is prohibited)",
+        "number of concurrent workers",
+        "expected allowed-send count per run",
+        "expected rate-limited count per run",
+        "provider-attempt count",
+        "database request-record count after concurrent run",
+        "active OTP count allowed",
+        "allowed final OTP lifecycle states",
+        "whether failed provider attempts consume quota",
+        "duplicate-delivery prohibition",
+        "cleanup and independent verification steps"
+      ]
+    },
+    "otp_lifecycle_states": {
+      "status": "UNRESOLVED__NEEDS_EXTERNAL",
+      "expected_states": ["pending_send", "sent_active", "send_failed"],
+      "note": "Exact semantics and allowed final states must be defined by the hook schema before test assertions can be written."
+    }
+  },
+  "idempotency_hook_note": {
+    "description": "T-CONCURRENCY-IDEMPOTENCY-POST is MANDATORY-DEFERRED and IMPLEMENTATION INCOMPLETE. The endpoint route, idempotency key header name, expected HTTP status for duplicate requests, and duplicate-record prevention behavior are all NEEDS-EXTERNAL. Per-worker isolation will be designed only after the endpoint contract is available.",
+    "status": "NEEDS-EXTERNAL"
+  },
+  "global_constants": {
+    "HOOK_SRC_PATHS": "All four keys must be configured before --run",
+    "HOOK_EXPECTED_SHA256": "All four keys must be configured before --run",
+    "HOOK_PROBE_ROUTES": "All four keys must match HOOK_SRC_PATHS keys exactly (defect-28 enforces this)",
+    "HOOK_OTP_PHONE_ROUTE": "Must be set to the hook-registered phone/WhatsApp OTP route before T-CONCURRENCY-OTP-SEND can run",
+    "HOOK_OTP_MOCK_CONTROL_ROUTE": "Must be set to the non-mutating mock-provider control route before T-CONCURRENCY-OTP-SEND can run",
+    "HOOK_EXPECTED_REMOVED_STATUS": "onboarding/push_broadcast/whatsapp = 404; alias_intercept = UNRESOLVED (interceptor baseline)"
+  },
+  "authorized_exclusions_note": "E4/E6/E8 corrected R15, preserved R18",
+  "nsu_hook_behavior_note": "T-NSU-HOOK-BEHAVIOR is DEFERRED-MANDATORY. Hook source must define NSU intercept semantics."
+}

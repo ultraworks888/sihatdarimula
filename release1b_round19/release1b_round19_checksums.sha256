@@ -1,0 +1,44 @@
+# Release 1B — Round 19 Checksums
+# Non-recursive integrity design:
+#   - This file covers all other Round 19 artifacts.
+#   - This file does NOT contain its own hash (non-recursive by design).
+#   - Its external hash must be recorded by the operator after download.
+#
+# OPERATOR INSTRUCTIONS:
+#   Run from the release1b_round19/ directory:
+#     shasum -a 256 <filename>
+#     wc -c < <filename>
+#   Fill in the SHA256 and BYTES columns below.
+#   Compare against values stated by the tool environment at delivery.
+#
+# R18 authoritative values (for cross-reference):
+#   release1b_round18/release1b_round18_checksums.sha256
+#   SHA-256: 5befdb6d0030a0c1465ed72bc227ebde2d027afe7641f9b48477fcbf3a7e1a47
+#   Bytes:   1252
+#
+# Format: SHA256  BYTES  FILENAME
+
+OPERATOR-COMPUTES  OPERATOR-COMPUTES  release1b_cp0.zsh
+OPERATOR-COMPUTES  OPERATOR-COMPUTES  release1b_cp0_manifest.json
+OPERATOR-COMPUTES  OPERATOR-COMPUTES  release1b_schema_manifest.json
+OPERATOR-COMPUTES  OPERATOR-COMPUTES  release1b_hook_manifest.json
+OPERATOR-COMPUTES  OPERATOR-COMPUTES  release1b_test_manifest.json
+OPERATOR-COMPUTES  OPERATOR-COMPUTES  release1b_operator_instructions.md
+OPERATOR-COMPUTES  OPERATOR-COMPUTES  release1b_round19_review.md
+
+# NOTE: release1b_round19_checksums.sha256 (this file) is NOT listed above.
+# Its hash must be recorded externally after all other values are filled.
+#
+# Verification command (run from release1b_round19/ directory after filling values):
+#   while IFS='  ' read -r sha bytes fname; do
+#     [[ "$sha" == \#* || -z "$sha" ]] && continue
+#     actual_sha=$(shasum -a 256 "$fname" | awk '{print $1}')
+#     actual_bytes=$(wc -c < "$fname" | tr -d ' ')
+#     if [[ "$actual_sha" == "$sha" && "$actual_bytes" == "$bytes" ]]; then
+#       echo "OK: $fname"
+#     else
+#       echo "FAIL: $fname"
+#       echo "  Expected: $sha  $bytes"
+#       echo "  Actual:   $actual_sha  $actual_bytes"
+#     fi
+#   done < release1b_round19_checksums.sha256

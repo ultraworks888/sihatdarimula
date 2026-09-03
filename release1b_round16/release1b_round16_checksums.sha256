@@ -1,0 +1,29 @@
+# Release 1B — Round 16 Checksums
+# Non-recursive integrity design:
+#   - This file covers all other Round 16 artifacts.
+#   - This file does NOT contain its own hash (non-recursive by design).
+#   - Its external hash must be recorded by the operator after download.
+#
+# R15 authoritative values are recorded in release1b_round16_review.md §A.
+# R16 values below are PENDING_FINAL_STATIC_VALIDATION because R16
+# artifacts changed from R15 (script and manifests corrected) and
+# SHA-256 hashes cannot be computed within the tool interface.
+#
+# Operators must compute these values after downloading all artifacts
+# and before executing the script in any mode.
+#
+# Computation commands (run from release1b_round16/ directory):
+#   shasum -a 256 <filename>
+#   wc -c < <filename>
+#
+# Format: SHA256  BYTES  FILENAME
+
+PENDING_FINAL_STATIC_VALIDATION  PENDING_FINAL_STATIC_VALIDATION  release1b_cp0.zsh
+PENDING_FINAL_STATIC_VALIDATION  PENDING_FINAL_STATIC_VALIDATION  release1b_cp0_manifest.json
+PENDING_FINAL_STATIC_VALIDATION  PENDING_FINAL_STATIC_VALIDATION  release1b_schema_manifest.json
+PENDING_FINAL_STATIC_VALIDATION  PENDING_FINAL_STATIC_VALIDATION  release1b_hook_manifest.json
+PENDING_FINAL_STATIC_VALIDATION  PENDING_FINAL_STATIC_VALIDATION  release1b_test_manifest.json
+PENDING_FINAL_STATIC_VALIDATION  PENDING_FINAL_STATIC_VALIDATION  release1b_round16_review.md
+
+# NOTE: release1b_round16_checksums.sha256 (this file) is NOT listed above.
+# Its hash must be recorded externally after all other values are filled.

@@ -1,0 +1,138 @@
+{
+  "package_version": "13",
+  "preparation_date": "2026-08-24",
+  "pocketbase_target_version": "0.29.3",
+  "status": "Draft for static review only. Checkpoint 0 cannot be authorized until B-CHECKSUM, B-SCHEMA, B-HOOKS, and B-FRONTEND are resolved and the resulting final package is re-hashed.",
+  "prohibited_execution": true,
+  "confirmed_no_production_data_or_credentials": true,
+  "hash_computation_constraint": "SHA-256 and byte-size computation requires executing 'shasum' and 'wc', which are prohibited under the current no-command authorization. The fields below are marked NOT_COMPUTABLE_UNDER_NO_COMMAND_RESTRICTION. This is a genuine constraint, not a delegation to the operator. The operator must compute these values independently to verify integrity, but the authoritative expected values cannot be supplied until command execution is authorized for this purpose.",
+
+  "round13_artifacts": [
+    {
+      "filename": "release1b_cp0.zsh",
+      "purpose": "Checkpoint 0 draft test driver",
+      "status": "drafted",
+      "byte_size": "NOT_COMPUTABLE_UNDER_NO_COMMAND_RESTRICTION",
+      "sha256":    "NOT_COMPUTABLE_UNDER_NO_COMMAND_RESTRICTION",
+      "encoding": "UTF-8",
+      "line_endings": "LF",
+      "ends_with_newline": true,
+      "note": "Written by Coderick write tool in Round 13. Corrections applied in same round: API fallback removed, T-FILE-AUTH-5/7 reclassified to deferred-mandatory."
+    },
+    {
+      "filename": "release1b_round13_review.md",
+      "purpose": "Correction matrix, blockers, authorization boundary, delivery constraint statement",
+      "status": "drafted",
+      "byte_size": "NOT_COMPUTABLE_UNDER_NO_COMMAND_RESTRICTION",
+      "sha256":    "NOT_COMPUTABLE_UNDER_NO_COMMAND_RESTRICTION",
+      "encoding": "UTF-8",
+      "line_endings": "LF",
+      "ends_with_newline": true
+    },
+    {
+      "filename": "release1b_cp0_manifest.json",
+      "purpose": "This manifest — artifact inventory, hash constraint declaration, operator action checklist",
+      "status": "drafted",
+      "byte_size": "NOT_COMPUTABLE_UNDER_NO_COMMAND_RESTRICTION",
+      "sha256":    "NOT_COMPUTABLE_UNDER_NO_COMMAND_RESTRICTION",
+      "encoding": "UTF-8",
+      "line_endings": "LF",
+      "ends_with_newline": true
+    },
+    {
+      "filename": "release1b_schema_manifest.json",
+      "purpose": "Required schema design: collections, fields, rules, migration file list",
+      "status": "drafted — B-SCHEMA: actual migration files not supplied",
+      "byte_size": "NOT_COMPUTABLE_UNDER_NO_COMMAND_RESTRICTION",
+      "sha256":    "NOT_COMPUTABLE_UNDER_NO_COMMAND_RESTRICTION",
+      "encoding": "UTF-8",
+      "line_endings": "LF",
+      "ends_with_newline": true
+    },
+    {
+      "filename": "release1b_hook_manifest.json",
+      "purpose": "Hook classification, specifications, actor behavior, activation and removal tests",
+      "status": "drafted — B-HOOKS: actual hook source files not supplied",
+      "byte_size": "NOT_COMPUTABLE_UNDER_NO_COMMAND_RESTRICTION",
+      "sha256":    "NOT_COMPUTABLE_UNDER_NO_COMMAND_RESTRICTION",
+      "encoding": "UTF-8",
+      "line_endings": "LF",
+      "ends_with_newline": true
+    },
+    {
+      "filename": "release1b_test_manifest.json",
+      "purpose": "Test inventory: IDs, status, prerequisites, expected results, traceability",
+      "status": "drafted",
+      "byte_size": "NOT_COMPUTABLE_UNDER_NO_COMMAND_RESTRICTION",
+      "sha256":    "NOT_COMPUTABLE_UNDER_NO_COMMAND_RESTRICTION",
+      "encoding": "UTF-8",
+      "line_endings": "LF",
+      "ends_with_newline": true
+    }
+  ],
+
+  "external_runtime_artifacts": [
+    {
+      "id": "B-CHECKSUM",
+      "filename": "pocketbase_0.29.3_darwin_arm64.zip",
+      "purpose": "PocketBase runtime binary — Apple Silicon",
+      "status": "BLOCKED — not retrieved during plan preparation; network access prohibited",
+      "sha256": "UNRESOLVED — retrieve from https://github.com/pocketbase/pocketbase/releases/download/v0.29.3/checksums.txt",
+      "byte_size": "UNRESOLVED",
+      "authoritative_source": "https://github.com/pocketbase/pocketbase/releases/tag/v0.29.3",
+      "checksum_file_url": "https://github.com/pocketbase/pocketbase/releases/download/v0.29.3/checksums.txt",
+      "provenance_procedure": [
+        "1. Download checksums.txt from the URL above.",
+        "2. Compare with the file listed on the GitHub release page.",
+        "3. Record the exact hex string for pocketbase_0.29.3_darwin_arm64.zip.",
+        "4. Replace PB_EXPECTED_SHA256[darwin_arm64] in release1b_cp0.zsh §3.",
+        "5. Re-hash release1b_cp0.zsh after the edit and update this manifest entry.",
+        "6. Record the retrieval date."
+      ],
+      "retrieval_date": "UNRESOLVED — must be recorded by operator at retrieval time"
+    },
+    {
+      "id": "B-CHECKSUM",
+      "filename": "pocketbase_0.29.3_darwin_amd64.zip",
+      "purpose": "PocketBase runtime binary — Intel",
+      "status": "BLOCKED — same procedure as darwin_arm64",
+      "sha256": "UNRESOLVED — retrieve from checksums.txt",
+      "byte_size": "UNRESOLVED",
+      "retrieval_date": "UNRESOLVED"
+    },
+    {
+      "id": "B-SCHEMA",
+      "description": "Reviewed sanitized migration files (directory: release1b_schema_src/)",
+      "purpose": "Isolated database schema equivalent to production",
+      "status": "BLOCKED — production migration files not available during plan preparation",
+      "per_file_sha256_manifest": "UNRESOLVED — operator supplies JSON manifest: [{file, sha256}, ...]",
+      "note": "See release1b_schema_manifest.json for required content design and collection list"
+    },
+    {
+      "id": "B-HOOKS",
+      "description": "Reviewed hook source files (directory: release1b_hooks_src/)",
+      "purpose": "Local hook sources for installation and testing",
+      "status": "BLOCKED — hook source files not available during plan preparation",
+      "per_file_sha256": "UNRESOLVED — operator supplies individual SHA-256 per hook filename",
+      "note": "See release1b_hook_manifest.json for required hook specifications and classification"
+    },
+    {
+      "id": "B-FRONTEND",
+      "description": "Frontend source snapshot (directory or archive)",
+      "purpose": "Read-only source for static route inventory (t_static_route_inventory)",
+      "status": "BLOCKED — repository snapshot not available during plan preparation",
+      "reference_hash": "UNRESOLVED — operator supplies commit hash or archive SHA-256",
+      "note": "Must be secret-scanned before use; no files may be modified after hash is recorded"
+    }
+  ],
+
+  "unresolved_blockers": ["B-CHECKSUM", "B-SCHEMA", "B-HOOKS", "B-FRONTEND"],
+
+  "operator_verification_steps": [
+    "After receiving the six Round 13 files, independently compute SHA-256 for each.",
+    "Compare computed hashes with this manifest. Note this manifest says NOT_COMPUTABLE: this is a delivery limitation, not an authorization to skip verification.",
+    "Resolve all four external blockers before issuing CP0 authorization.",
+    "After resolving any blocker that requires editing release1b_cp0.zsh (B-CHECKSUM), re-hash the script and update this manifest.",
+    "Issue CP0 authorization only after all blockers are resolved and the updated manifest hashes are confirmed."
+  ]
+}

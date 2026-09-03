@@ -1,0 +1,23 @@
+# Release 1B — Round 18 Checksums
+# Non-recursive integrity design:
+#   - This file covers all other Round 18 artifacts.
+#   - This file does NOT contain its own hash (non-recursive by design).
+#   - Its external hash must be recorded by the operator after download.
+#
+# R18 authoritative values are recorded in release1b_round18_review.md §A.
+#
+# Computation commands (run from release1b_round18/ directory):
+#   shasum -a 256 <filename>
+#   wc -c < <filename>
+#
+# Format: SHA256  BYTES  FILENAME
+
+ad5277a66628437dad0caf78b063dd5538154ea5cf7dbddc29b350ac10ba472f  145131  release1b_cp0.zsh
+8504d7703e866e3489ed687bcf60880ab0b78b6f0fcb9248172fb86781b3a0f8  8381  release1b_cp0_manifest.json
+1e496d540acf784ab667532f2d5e5fc014f0d9b8ee5ffd174795e893fb9120c6  8380  release1b_schema_manifest.json
+8d718f3884d9adb6821c7d7cd59451ad356bad4c795b62d47fabd347c211b785  5627  release1b_hook_manifest.json
+381452713eacfbb68abc8f3ec40266e68b4eb2ef9e8700e18707bbacc1360846  10923  release1b_test_manifest.json
+88a7f7ca1fbdbb2bb391a3eecb40e51d64299fd5644af64ebbf8fed87460ec89  10743  release1b_round18_review.md
+
+# NOTE: release1b_round18_checksums.sha256 (this file) is NOT listed above.
+# Its hash must be recorded externally after all other values are filled.

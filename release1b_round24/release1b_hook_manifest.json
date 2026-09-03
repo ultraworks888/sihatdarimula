@@ -1,0 +1,48 @@
+{
+  "manifest_version": "1",
+  "round": "24",
+  "hooks": {
+    "emergency_hardening": {
+      "probe_type": "behavioral",
+      "proof": "T-FIELD-ROLE-REJECT, T-ADMIN-ESCALATION"
+    },
+    "push_broadcast": {
+      "probe_type": "route",
+      "method": "POST",
+      "route": "/api/admin/push-broadcast",
+      "safe_probe": "empty body → 400 (never reaches OneSignal)"
+    },
+    "whatsapp": {
+      "probe_type": "route",
+      "method": "GET",
+      "route": "/api/admin/whatsapp/config",
+      "safe_probe": "read config → 200 or 401/403; no external contact"
+    }
+  },
+  "otp_test_adapter": {
+    "routes": {
+      "control":    { "method": "POST", "path": "/api/test/otp-control",         "auth": "_superusers" },
+      "rate_count": { "method": "GET",  "path": "/api/test/otp-rate-count",       "auth": "_superusers" },
+      "request":    { "method": "POST", "path": "/api/auth/request-whatsapp-otp", "auth": "ordinary-user token" },
+      "verify":     { "method": "POST", "path": "/api/auth/verify-whatsapp-otp",  "auth": "ordinary-user token; requesting_user_id must match" }
+    },
+    "modes": [
+      "success", "send_failed", "pending_send",
+      "db_fail_request", "db_fail_request_cleanup_fail",
+      "db_fail_verify", "pending_create_fail"
+    ],
+    "error_response_policy": {
+      "sanitized": true,
+      "no_record_ids": true,
+      "no_raw_exceptions": true,
+      "no_phone_codes": true
+    }
+  },
+  "phone_guard_hook": {
+    "name": "release1b_r24_phone_verified_guard.pb.js",
+    "protects": ["users.phone", "users.phone_verified"],
+    "nsu_bypass": "_superusers only — verified at runtime by T-SU-COLL-CHECK"
+  },
+  "nsu_auth_endpoint": "/api/collections/_superusers/auth-with-password",
+  "nsu_token_handling": "pbj_tok.py: non-printing; writes to permission-600 file only"
+}

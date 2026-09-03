@@ -1,0 +1,176 @@
+{
+  "manifest_version": "1",
+  "round": "20",
+  "status": "DRAFTED — test design updated for R20 corrections",
+  "test_email_domain": "example.invalid (RFC 2606 §2 reserved)",
+  "test_groups": {
+    "preflight": {
+      "T-PREFLIGHT-PORTS": { "expect": "port 8090 free", "result": "RUNNABLE" },
+      "T-PKG-VERSION":     { "expect": "binary reports v0.29.3", "result": "RUNNABLE" },
+      "T-SELFTEST-EMAIL-DOMAIN": { "expect": "PB accepts example.invalid; BLOCKS if rejected", "result": "RUNNABLE (R20 NEW)" }
+    },
+    "schema": {
+      "T-SCHEMA-COL-*":               { "expect": "all required collections exist", "result": "RUNNABLE" },
+      "T-SCHEMA-FIELD-CHILDREN-USER": { "expect": "children.user field exists; children.parent absent", "result": "RUNNABLE" },
+      "T-SCHEMA-FIELD-ART-CATEGORY":  { "expect": "articles.category field present", "result": "RUNNABLE" },
+      "T-SCHEMA-FIELD-ART-PREGNANCY": { "expect": "articles.is_pregnancy field present", "result": "RUNNABLE" }
+    },
+    "injection_emergency": {
+      "T-INJECT-CREATE-ANON-ADMIN": {
+        "description": "Anonymous POST /api/collections/users/records with role=admin. Verifies HTTP response AND persisted record via NSU.",
+        "pass_condition": "400/401/403 AND no record with that identity; OR 200 with persisted role != admin/superadmin",
+        "blocking_condition": "role=admin persisted in created record",
+        "transport_error_condition": "HARNESS_ERROR",
+        "result": "RUNNABLE",
+        "r20_notes": ["D-4: strict contract — transport errors no longer silently pass", "D-4: on 400/401/403 checks no record was created via email filter"]
+      },
+      "T-INJECT-CREATE-ANON-SADMIN": {
+        "description": "Anonymous POST with role=superadmin. Same contract as ADMIN.",
+        "result": "RUNNABLE"
+      },
+      "T-INJECT-CREATE-VERIFIED": {
+        "description": "Anonymous POST with verified=true.",
+        "result": "RUNNABLE"
+      },
+      "T-INJECT-CREATE-UNEXPECTED": {
+        "description": "Anonymous POST with phone_verified=true and is_alias_account=true (fields absent from schema). Reads persisted record. Verifies role, verified, system-auth fields not violated.",
+        "pass_condition": "400/401/403; OR 200 with persisted record shape: role not privileged, verified not true, system-auth fields absent",
+        "blocking_condition": "role=admin/superadmin or verified=true or tokenKey/passwordHash exposed in persisted record",
+        "result": "RUNNABLE",
+        "r20_notes": ["D-5: now reads and verifies persisted record shape; was previously just HTTP 200/400 check"]
+      }
+    },
+    "crud": {
+      "T-CRUD-CH-LIST":          { "result": "RUNNABLE" },
+      "T-CRUD-CH-CREATE":        { "result": "RUNNABLE", "body_field": "user= (not parent=)" },
+      "T-CRUD-CH-CREATE-CROSS":  { "result": "RUNNABLE", "body_field": "user= (not parent=)" },
+      "T-CRUD-GL-CREATE":        { "collection": "growth_logs", "result": "RUNNABLE" }
+    },
+    "field_protection": {
+      "T-FIELD-ROLE-REJECT": {
+        "expect": "403 from emergency_hardening hook; persisted role verified unchanged",
+        "result": "RUNNABLE",
+        "r19_correction": "Expected status changed from 400 to 403"
+      },
+      "T-FIELD-PHONE-REJECT": {
+        "result": "DEFERRED-MANDATORY",
+        "note": "phone_verified absent from production schema. Tested via temporary local schema in §28.6 (R20 D-11)."
+      },
+      "T-FIELD-ALIAS-REJECT": {
+        "result": "DEFERRED-MANDATORY",
+        "note": "is_alias_account absent. Alias enum behavior tested in §26."
+      }
+    },
+    "file_auth": {
+      "T-FILE-AUTH-1": { "collection": "growth_logs", "result": "RUNNABLE" },
+      "T-FILE-AUTH-2": { "collection": "growth_logs", "result": "RUNNABLE" },
+      "T-FILE-AUTH-3": { "collection": "growth_logs", "result": "RUNNABLE" },
+      "T-FILE-AUTH-4": { "collection": "growth_logs", "result": "RUNNABLE" },
+      "T-FILE-AUTH-5": { "result": "DEFERRED-MANDATORY", "note": "Requires operator-provided binary test asset (NEEDS-EXTERNAL)" },
+      "T-FILE-AUTH-6": { "result": "RUNNABLE", "note": "Uses nonexistent users avatar path; expects 404/401" },
+      "T-FILE-AUTH-7": { "result": "DEFERRED-MANDATORY", "note": "Depends on T-FILE-AUTH-5" }
+    },
+    "alias_enum": {
+      "T-ALIAS-ENUM-1": { "result": "RUNNABLE", "note": "is_alias_account absent; test uses ordinary role=user account" },
+      "T-ALIAS-ENUM-2": { "result": "RUNNABLE" },
+      "T-ALIAS-ENUM-3": { "result": "RUNNABLE" },
+      "T-ALIAS-ENUM-4": { "result": "RUNNABLE" }
+    },
+    "phone_future_state": {
+      "note": "R20 D-11: temporary local schema migration adds phone_verified in isolated env",
+      "T-PHONE-FUTURE-SETUP":         { "result": "RUNNABLE (R20 NEW)" },
+      "T-PHONE-FUTURE-SELF-SET":      { "expect": "403 from hook (fails without hook guard)", "result": "RUNNABLE (R20 NEW)" },
+      "T-PHONE-FUTURE-ADMIN-SET":     { "expect": "200 — admin can set phone_verified", "result": "RUNNABLE (R20 NEW)" },
+      "T-PHONE-FUTURE-INJECT-CREATE": { "expect": "phone_verified=true not persisted on create", "result": "RUNNABLE (R20 NEW)" }
+    },
+    "auth": {
+      "T-ANON-READ":         { "result": "RUNNABLE" },
+      "T-NSU-BYPASS":        { "result": "RUNNABLE" },
+      "T-SADMIN-LIST-USERS": { "result": "RUNNABLE" }
+    },
+    "admin": {
+      "T-ADMIN-ESCALATION": { "result": "RUNNABLE" }
+    },
+    "content": {
+      "T-ART-ANON-POLICY": {
+        "expect": "401 or 403 — authentication required before article access",
+        "current_schema_prediction": "FAIL — listRule is empty (public)",
+        "result": "RUNNABLE (SCORED)",
+        "r20_notes": ["D-10: changed from UNRESOLVED to scored test; policy established by release requirements"]
+      },
+      "T-ART-ANTENATAL-VIS": {
+        "expect": "200 — authenticated user can filter by is_pregnancy=true",
+        "result": "RUNNABLE"
+      },
+      "T-ART-ANTENATAL-AUTH-ONLY": {
+        "expect": "403/400 or 200 with 0 items — postnatal articles not returned to ordinary user",
+        "current_schema_prediction": "FAIL — no server-side postnatal filter",
+        "result": "RUNNABLE (SCORED) (R20 NEW)"
+      },
+      "T-ART-CATEGORY-FILTER": {
+        "expect": "200 — category=pregnancy filter works",
+        "result": "RUNNABLE"
+      }
+    },
+    "otp": {
+      "T-OTP-FLOW": {
+        "result": "RUNNABLE (R20 D-7)",
+        "note": "OTP adapter delivered; test now executable. Was DEFERRED-MANDATORY in R19.",
+        "synthetic_phone": "+601_R20TEST_77701234",
+        "steps": ["Set adapter mode=success", "POST request-whatsapp-otp", "Read OTP from phone_otps via NSU", "POST verify-whatsapp-otp with code", "Expect 200 verified=true"]
+      }
+    },
+    "concurrency": {
+      "T-CONCURRENCY-AUTH": {
+        "result": "RUNNABLE",
+        "note": "5 concurrent wrong-password auth attempts; all expect 400"
+      },
+      "T-CONCURRENCY-OTP-SEND": {
+        "result": "RUNNABLE (R20 D-7)",
+        "note": "OTP adapter deployed. 5 concurrent OTP requests for one synthetic phone. Rate-limit behaviour is NEEDS-EXTERNAL policy decision.",
+        "synthetic_phone": "+601_R20TEST_00099001"
+      },
+      "T-CONCURRENCY-IDEMPOTENCY-POST": {
+        "result": "DEFERRED-MANDATORY",
+        "note": "No idempotency-enforcing hook identified. NEEDS-EXTERNAL."
+      }
+    },
+    "hook_smoke": {
+      "T-HOOK-SMOKE-emergency_hardening": {
+        "probe_type": "behavioral",
+        "result": "RUNNABLE (behavioral)",
+        "note": "D-13: no standalone route; proof is T-FIELD-ROLE-REJECT"
+      },
+      "T-HOOK-SMOKE-push_broadcast": {
+        "probe_type": "route",
+        "result": "RUNNABLE if HOOK_PROBE_ROUTES[push_broadcast] filled; else UNRESOLVED"
+      },
+      "T-HOOK-SMOKE-whatsapp": {
+        "probe_type": "route",
+        "result": "RUNNABLE if HOOK_PROBE_ROUTES[whatsapp] filled; else UNRESOLVED"
+      },
+      "T-HOOK-SMOKE-otp_adapter": {
+        "probe_type": "route",
+        "result": "RUNNABLE",
+        "note": "Verified via T-API-DECL-OTP-REQUEST and T-API-DECL-OTP-CTRL"
+      }
+    },
+    "authorized_exclusions": {
+      "E4-EMAIL-CHANGE-LIFECYCLE": "Requires production SMTP",
+      "E6-OTP-REACHABILITY":       "Requires Meta Cloud API credentials",
+      "E8-WARN-LOG-OBSERVABILITY": "Requires production log pipeline"
+    }
+  },
+  "r20_needs_external": [
+    "HOOK_SRC_PATHS (emergency_hardening, push_broadcast, whatsapp)",
+    "HOOK_EXPECTED_SHA256 (per hook)",
+    "HOOK_PROBE_ROUTES[push_broadcast], HOOK_PROBE_ROUTES[whatsapp]",
+    "RELEASE1B_SCHEMA_SRC",
+    "OTP rate-limit invariants (no rate limit in current hook)",
+    "Alias marker necessity (from T-ALIAS-ENUM timing results)",
+    "articles.listRule fix authorization",
+    "Binary test asset for T-FILE-AUTH-5/7",
+    "Idempotency endpoint definition",
+    "S-3 production credential status (operator determines without contacting production)"
+  ]
+}

@@ -1,0 +1,64 @@
+{
+  "manifest_version": "1",
+  "round": "23",
+  "status": "DRAFTED — syntax verified by inspection per D23-13.",
+  "checkpoint_0_authorization_status": "AUTHORIZED BUT NOT EXECUTED — EXECUTION ENVIRONMENT UNAVAILABLE",
+  "artifact_inventory": {
+    "count": 10,
+    "deliverables": [
+      "release1b_cp0.zsh",
+      "release1b_otp_test_adapter.pb.js",
+      "release1b_r23_checksums.sha256",
+      "release1b_r23_checksums.py",
+      "release1b_cp0_manifest.json",
+      "release1b_schema_manifest.json",
+      "release1b_hook_manifest.json",
+      "release1b_test_manifest.json",
+      "release1b_operator_instructions.md",
+      "release1b_round23_review.md"
+    ]
+  },
+  "r23_corrections": {
+    "D23-1":  "Fatal zsh syntax errors fixed: all 'return N fi' patterns corrected to proper if/fi termination with newline before fi.",
+    "D23-2":  "PocketBase v0.29.3: auth via /api/collections/_superusers/auth-with-password. NSU created by migration (0000000001_r23_nsu_bootstrap.js), not CLI. Runtime tests: T-SU-CREATE-AUTH, T-SU-COLL-CHECK (collectionName==_superusers), T-SU-TOKEN-VALID, T-SU-DELETE.",
+    "D23-3":  "Password not in process args, env listings, shell history, or retained files. Written via printf to migration file (mode 600, isolated root mode 700). Local shell variable cleared immediately. Migration file deleted after PB startup.",
+    "D23-4":  "requesting_user_id stored in TX-1; required to match e.auth.id in TX-3. Cross-user test T-PHONE-OTP-CROSS-USER added. User B cannot verify OTP requested by User A.",
+    "D23-5":  "Expired OTP: return-from-TX pattern commits expired state; throw happens OUTSIDE the TX. Test T-OTP-EXPIRED verifies adapter_status=expired persists after failed verify attempt.",
+    "D23-6":  "TX-2 cleanup: $app.runInTransaction() used for cleanup; errors not swallowed; 500 returned when cleanup fails. Mode db_fail_request_cleanup_fail tested by T-OTP-DB-FAIL-CLEANUP-FAIL.",
+    "D23-7":  "Concurrent verify: exactly 1 success (not <= 1). DB-state: consumed=1, active=0, user phone+pv set once. Concurrent send: verifies HTTP outcomes and persisted DB state.",
+    "D23-8":  "All concurrent tests: workers collect evidence without calling terminal functions. Single t_pass/t_fail/t_harness_err per group after aggregation.",
+    "D23-9":  "_t_fatal_internal cannot re-enter _t_record_outcome. Selftest covers PASS/PASS, PASS/FAIL, FAIL/PASS via isolated _st_rec function.",
+    "D23-10": "All OTP request and verify bodies use _otp_body_request() and _otp_body_verify() which call PBJ_PY. No raw printf for OTP JSON.",
+    "D23-11": "Integrity limitation documented as unresolved provenance (not a corrected defect). Verifier rejects symlinks and non-regular files. Generation refuses to overwrite populated baseline without --replace.",
+    "D23-12": "Rate-limit and idempotency explicitly DEFERRED-MANDATORY. No implied safety claim in any artifact.",
+    "D23-13": "Static acceptance gate run by inspection. Results in delivery message. Synthetic phones updated to +601_R23TEST_*."
+  },
+  "nsu_bootstrap_design": {
+    "method": "PocketBase migration (0000000001_r23_nsu_bootstrap.js)",
+    "password_exposure": "Local non-exported shell variable, cleared immediately. Migration file mode 600 in isolated root mode 700. File deleted after PB startup.",
+    "auth_endpoint": "/api/collections/_superusers/auth-with-password",
+    "runtime_verification": ["T-SU-CREATE-AUTH", "T-SU-COLL-CHECK", "T-SU-TOKEN-VALID", "T-SU-DELETE"],
+    "no_cli_usage": true
+  },
+  "transaction_design": {
+    "api": "$app.runInTransaction((txApp) => { ... })",
+    "reference": "https://pocketbase.io/docs/js-records/#transaction",
+    "TX-1": "Create pending_send + requesting_user_id. Rolls back on throw.",
+    "TX-2": "Transition pending → sent_active or send_failed. db_fail_request: TX-2 throws → rolls back → cleanup TX.",
+    "TX-3": "Return-based pattern. Commits expired/mismatch/forbidden state then throws outside. On db_fail_verify throw: full rollback, OTP stays active (retryable).",
+    "cleanup_tx": "Separate $app.runInTransaction for TX-2 failure cleanup. Error not swallowed. 500 if cleanup fails."
+  },
+  "otp_user_binding": {
+    "field": "phone_otps.requesting_user_id",
+    "set_in": "TX-1",
+    "verified_in": "TX-3: otp.requesting_user_id == e.auth.id",
+    "cross_user_test": "T-PHONE-OTP-CROSS-USER"
+  },
+  "rate_limit_status": {
+    "lifecycle_capability": "TESTABLE (T-OTP-FLOW, T-OTP-DB-FAIL-REQUEST, etc.)",
+    "provider_lifecycle": "TESTABLE (adapter modes)",
+    "persistent_rate_limit": "DEFERRED-MANDATORY (policy undefined)",
+    "idempotency": "DEFERRED-MANDATORY (policy undefined)",
+    "production_readiness": "NOT AUTHORIZED"
+  }
+}

@@ -1,0 +1,54 @@
+{
+  "manifest_version": "1",
+  "round": "23",
+  "test_groups": {
+    "nsu_bootstrap": {
+      "T-NSU-BOOTSTRAP-MIG-WRITTEN": "RUNNABLE",
+      "T-SU-CREATE-AUTH":            "RUNNABLE (D23-2: migration-based creation)",
+      "T-SU-COLL-CHECK":             "RUNNABLE (D23-2: verifies collectionName==_superusers)",
+      "T-SU-TOKEN-VALID":            "RUNNABLE (D23-2: token non-empty, pattern valid)",
+      "T-SU-DELETE":                 "RUNNABLE"
+    },
+    "injection": {
+      "T-INJECT-CREATE-ANON-ADMIN":  "RUNNABLE",
+      "T-INJECT-CREATE-ANON-SADMIN": "RUNNABLE",
+      "T-INJECT-CREATE-VERIFIED":    "RUNNABLE",
+      "T-INJECT-CREATE-PHONE-VER":   "RUNNABLE",
+      "T-INJECT-CREATE-UNEXPECTED":  "RUNNABLE — queries users collection"
+    },
+    "phone_guard": {
+      "T-PHONE-ORD-NO-PATCH-PHONE":   "RUNNABLE (D23-10: PBJ_PY body)",
+      "T-PHONE-ORD-NO-PATCH-PV":      "RUNNABLE",
+      "T-PHONE-MIXED-FIELD-REJECT":   "RUNNABLE (D22-9)",
+      "T-PHONE-NSU-RECOVERY":         "RUNNABLE",
+      "T-PHONE-NSU-PV-NO-PHONE":      "RUNNABLE",
+      "T-PHONE-OTP-AUTH-ANON":        "RUNNABLE (D23-10: PBJ_PY body)",
+      "T-PHONE-OTP-AUTH-ADMIN":       "RUNNABLE",
+      "T-PHONE-OTP-AUTH-SADMIN":      "RUNNABLE",
+      "T-PHONE-OTP-CROSS-USER":       "RUNNABLE (D23-4: requesting_user_id binding)",
+      "T-PHONE-OTP-ATOMIC-LINK":      "RUNNABLE",
+      "T-PHONE-OTP-ROLLBACK":         "RUNNABLE (D23-5: OTP stays active)"
+    },
+    "otp_lifecycle": {
+      "T-OTP-PENDING-CREATE-FAIL":       "RUNNABLE (D23-10: PBJ_PY body)",
+      "T-OTP-FLOW":                      "RUNNABLE",
+      "T-OTP-DB-FAIL-REQUEST":           "RUNNABLE",
+      "T-OTP-DB-FAIL-CLEANUP-FAIL":      "RUNNABLE (D23-6)",
+      "T-OTP-EXPIRED":                   "RUNNABLE (D23-5: expired state committed by TX)"
+    },
+    "concurrency": {
+      "T-CONCURRENCY-AUTH":              "RUNNABLE (D23-8: single group terminal)",
+      "T-CONCURRENCY-OTP-SEND":          "RUNNABLE (D23-7: DB-state; D23-8: single terminal)",
+      "T-CONCURRENCY-OTP-VERIFY":        "RUNNABLE (D23-7: exactly 1 success; D23-8: single terminal)",
+      "T-OTP-RATE-LIMIT-POLICY":         "DEFERRED-MANDATORY (D23-12)",
+      "T-OTP-IDEMPOTENCY-POLICY":        "DEFERRED-MANDATORY (D23-12)",
+      "T-CONCURRENCY-IDEMPOTENCY-POST":  "DEFERRED-MANDATORY (D23-12)"
+    }
+  },
+  "single_outcome_design": {
+    "mechanism": "_t_record_outcome() + _t_fatal_internal()",
+    "non_recursive": "_t_fatal_internal does not call _t_record_outcome",
+    "selftest": "PASS/PASS, PASS/FAIL, FAIL/PASS all detected via isolated _st_rec"
+  },
+  "rate_limit_note": "D23-12: Persistent rate-limit and idempotency policy remain DEFERRED-MANDATORY. OTP lifecycle capability is testable. Production deployment readiness is not authorized."
+}

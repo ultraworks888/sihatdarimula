@@ -1,0 +1,56 @@
+{
+  "manifest_version": "1",
+  "artifact": "release1b_cp0.zsh",
+  "round": "14",
+  "status": "DRAFTED",
+  "integrity_design": "non-recursive: this manifest covers the script and other artifacts; release1b_round14_checksums.sha256 covers this manifest and all other artifacts; the checksums file does not contain its own hash",
+  "validations_performed": {
+    "strict_json_parsing": "NOT PERFORMED — tool interface limitation",
+    "zsh_syntax_check": "NOT PERFORMED — tool interface limitation; script not executed in any mode",
+    "byte_counting": "NOT PERFORMED — see release1b_round14_checksums.sha256 (PENDING_FINAL_STATIC_VALIDATION)",
+    "sha256_hashing": "NOT PERFORMED — see release1b_round14_checksums.sha256 (PENDING_FINAL_STATIC_VALIDATION)",
+    "visual_inspection": "PERFORMED — not a substitute for the above"
+  },
+  "execution_confirmation": {
+    "script_executed": false,
+    "package_check_run": false,
+    "harness_check_run": false,
+    "preflight_run": false,
+    "run_mode_invoked": false,
+    "network_contact": false,
+    "service_started": false,
+    "database_touched": false,
+    "production_contact": false
+  },
+  "eof_parse_error_r13": {
+    "status": "UNRESOLVED",
+    "note": "Source of Round 13 EOF parse error was not positively identified through investigation. The cause was not established. This is a complete fresh rewrite; carry-over is eliminated regardless of cause. Do not assert invisible characters as the cause — that has not been established.",
+    "investigation_summary": "Approximately 15 read_file calls covering all sections of R13 script. All function bodies, heredocs (25 openers / 25 terminators confirmed via grep at column 0), if/fi, for/done, while/done, case/esac constructs read appear structurally complete. Cause positively unidentified."
+  },
+  "defect_count_total": 31,
+  "defect_count_impl": 23,
+  "defect_count_impl_md": 6,
+  "defect_count_needs_external": 2,
+  "corrections_reference": "release1b_round14_review.md",
+  "or_true_inventory": {
+    "executable_occurrences": 19,
+    "note": "All || true occurrences in the R13 script were inventoried. In this R14 rewrite, || true is eliminated from security-critical and cleanup paths. See release1b_round14_review.md §D for full inventory and disposition mapping.",
+    "categories": {
+      "security_critical_replaced": "replaced with tracked failure (CLEANUP_FAILURE=1 or t_harness_err)",
+      "cleanup_replaced": "replaced with CLEANUP_FAILURE=1",
+      "auth_failure_replaced": "replaced with t_blocking / t_fail",
+      "benign_retained": "only where genuinely non-fatal (wait return code, rm -f idempotent ops)"
+    }
+  },
+  "defect_number_mapping": {
+    "27": "actor-role rule",
+    "28": "package integrity / HOOK_PROBE_ROUTES key-set match",
+    "29": "path disclosure sanitization in report",
+    "30": "non-atomic export replaced with atomic rename"
+  },
+  "defect_1_note": "Double-invocation not reproduced in R13 delivered artifact. Single-invocation self-test retained. Recorded as not-reproduced.",
+  "script_basename": "release1b_cp0.zsh",
+  "output_directory": "release1b_round14/",
+  "r13_preservation": "All Round 13 artifacts at workspace root remain unchanged. Round 14 artifacts are in release1b_round14/ only.",
+  "checkpoint_0_authorization": "NOT AUTHORIZED — --authorize-cp0 flag guard remains in main(); cp0_run() callable only after explicit separate Checkpoint 0 authorization"
+}

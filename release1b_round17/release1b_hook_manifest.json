@@ -1,0 +1,71 @@
+{
+  "manifest_version": "1",
+  "round": "17",
+  "status": "DRAFTED",
+  "basis": "Identical to R16 release1b_hook_manifest.json — no hook changes in R17",
+  "defect_16_classification": "IMPL-MD — alias_intercept interceptor baseline is NEEDS-EXTERNAL. HOOK_EXPECTED_REMOVED_STATUS[alias_intercept] remains UNRESOLVED__NEEDS_EXTERNAL.",
+  "defect_23_note": "T-CONCURRENCY-AUTH is IMPL. T-CONCURRENCY-OTP-SEND requires OTP endpoint (NEEDS-EXTERNAL). T-CONCURRENCY-IDEMPOTENCY-POST requires idempotency hook endpoint (NEEDS-EXTERNAL). Defect 23 is IMPL-MD.",
+  "hooks": {
+    "onboarding": {
+      "description": "Patient onboarding hook. Handles antenatal phase enrollment and routing.",
+      "src_path": "UNRESOLVED__NEEDS_EXTERNAL",
+      "sha256": "UNRESOLVED__NEEDS_EXTERNAL",
+      "probe_route": "UNRESOLVED__NEEDS_EXTERNAL",
+      "probe_method": "GET",
+      "expected_status_when_loaded": "UNRESOLVED__NEEDS_EXTERNAL",
+      "expected_status_after_removal": "404",
+      "removal_status_rationale": "Route is hook-exclusive; disappears when hook is removed"
+    },
+    "push_broadcast": {
+      "description": "Push notification broadcast hook.",
+      "src_path": "UNRESOLVED__NEEDS_EXTERNAL",
+      "sha256": "UNRESOLVED__NEEDS_EXTERNAL",
+      "probe_route": "UNRESOLVED__NEEDS_EXTERNAL",
+      "probe_method": "POST",
+      "expected_status_when_loaded": "UNRESOLVED__NEEDS_EXTERNAL",
+      "expected_status_after_removal": "404",
+      "removal_status_rationale": "Route is hook-exclusive"
+    },
+    "whatsapp": {
+      "description": "WhatsApp integration hook.",
+      "src_path": "UNRESOLVED__NEEDS_EXTERNAL",
+      "sha256": "UNRESOLVED__NEEDS_EXTERNAL",
+      "probe_route": "UNRESOLVED__NEEDS_EXTERNAL",
+      "probe_method": "POST",
+      "expected_status_when_loaded": "UNRESOLVED__NEEDS_EXTERNAL",
+      "expected_status_after_removal": "404",
+      "removal_status_rationale": "Route is hook-exclusive"
+    },
+    "alias_intercept": {
+      "description": "Alias account intercept hook. Intercepts auth-with-password for alias accounts and returns 400.",
+      "src_path": "UNRESOLVED__NEEDS_EXTERNAL",
+      "sha256": "UNRESOLVED__NEEDS_EXTERNAL",
+      "probe_route": "UNRESOLVED__NEEDS_EXTERNAL__likely /api/collections/users/auth-with-password",
+      "probe_method": "POST",
+      "expected_status_when_loaded": "UNRESOLVED__NEEDS_EXTERNAL",
+      "expected_status_after_removal": "UNRESOLVED__NEEDS_EXTERNAL",
+      "removal_status_rationale": "UNRESOLVED: route is shared with PocketBase core auth; post-removal baseline requires operator specification"
+    }
+  },
+  "idempotency_hook_note": {
+    "description": "T-CONCURRENCY-IDEMPOTENCY-POST requires an idempotency-capable hook endpoint. The route, idempotency key header name, expected HTTP status for duplicate requests, and duplicate-record prevention behavior are all NEEDS-EXTERNAL. This hook is not listed in HOOK_SRC_PATHS until it is available.",
+    "status": "NEEDS-EXTERNAL"
+  },
+  "global_constants_required": {
+    "HOOK_SRC_PATHS": "All four keys must be set to valid file paths before --run",
+    "HOOK_EXPECTED_SHA256": "All four keys must be set to valid SHA-256 hashes before --run",
+    "HOOK_PROBE_ROUTES": "All four keys must be set; defect-28 enforces exact key-set match with HOOK_SRC_PATHS",
+    "HOOK_PROBE_METHODS": "Defaults provided; override as needed",
+    "HOOK_EXPECTED_REMOVED_STATUS": "onboarding/push_broadcast/whatsapp = 404; alias_intercept = UNRESOLVED (NEEDS-EXTERNAL)"
+  },
+  "defect_28_requirement": "pb_check_package_completeness() verifies HOOK_PROBE_ROUTES keys exactly match HOOK_SRC_PATHS keys. Runs in --package-check mode.",
+  "unresolved_items": [
+    "All hook source file paths (NEEDS-EXTERNAL)",
+    "All hook SHA-256 hashes (NEEDS-EXTERNAL)",
+    "All probe routes (NEEDS-EXTERNAL)",
+    "alias_intercept post-removal expected status (NEEDS-EXTERNAL — interceptor baseline)",
+    "Idempotency hook endpoint route, key header, and expected behavior (NEEDS-EXTERNAL)"
+  ],
+  "nsu_hook_behavior_note": "T-NSU-HOOK-BEHAVIOR is DEFERRED-MANDATORY. Hook source must define expected behavior for NSU requests routed through hook interceptors.",
+  "authorized_exclusions_note": "E4 = email-change lifecycle diagnostic; E6 = OTP endpoint reachability; E8 = WARN-log observability. Corrected in R15, preserved in R17."
+}

@@ -1,0 +1,111 @@
+{
+  "manifest_version": "1",
+  "artifact": "release1b_cp0.zsh",
+  "round": "15",
+  "status": "DRAFTED",
+  "basis": "Round 14 narrowly corrected; R14 authoritative checksums recorded in release1b_round14_checksums.sha256 (filled post-static-validation)",
+  "integrity_design": "non-recursive: this manifest covers the script and other artifacts; release1b_round15_checksums.sha256 covers this manifest and all other artifacts; the checksums file does not contain its own hash",
+  "validations_performed": {
+    "strict_json_parsing": "NOT PERFORMED — tool interface limitation",
+    "zsh_syntax_check": "NOT PERFORMED — tool interface limitation; script not executed in any mode",
+    "byte_counting": "NOT PERFORMED — see release1b_round15_checksums.sha256 (PENDING_FINAL_STATIC_VALIDATION)",
+    "sha256_hashing": "NOT PERFORMED — see release1b_round15_checksums.sha256 (PENDING_FINAL_STATIC_VALIDATION)",
+    "visual_inspection": "PERFORMED — not a substitute for the above",
+    "or_true_grep": "PERFORMED — grep confirmed 2 executable || true retained (lines in pb_wipe_secret_file and pb_trap_cleanup kill-wait), both with explicit inline documentation"
+  },
+  "execution_confirmation": {
+    "script_executed": false,
+    "package_check_run": false,
+    "harness_check_run": false,
+    "preflight_run": false,
+    "run_mode_invoked": false,
+    "network_contact": false,
+    "service_started": false,
+    "database_touched": false,
+    "production_contact": false
+  },
+  "r15_changes_from_r14": {
+    "1_e4_e6_e8_corrected": {
+      "finding": "R14 had E4=proxy-IP, E6=push-broadcast, E8=WhatsApp — all historically wrong",
+      "fix": "pb_record_production_exclusions() now records E4=email-change-lifecycle-diagnostic, E6=OTP-endpoint-reachability, E8=WARN-log-observability",
+      "defect": "21"
+    },
+    "2_migration_copy_fail_closed": {
+      "finding": "pb_apply_schema_migrations: cp and chmod used || true; glob failure (no .js files) suppressed",
+      "fix": "File-by-file copy with explicit failure path; zero-.js-files case is t_blocking; chmod failure is t_blocking",
+      "defect": "11"
+    },
+    "3_legacy_fixture_deletion_fail_closed": {
+      "finding": "pb_delete_legacy_fixture: chained || true at line 1998 suppressed dual-collection failure without setting CLEANUP_FAILURE",
+      "fix": "Each deletion attempt tracked independently; both-fail sets CLEANUP_FAILURE=1 with warning message",
+      "defect": "11"
+    },
+    "4_concurrency_wait_documented": {
+      "finding": "wait || true in t_concurrency_auth_group: non-zero exit from wait suppressed without comment",
+      "fix": "|| true removed; bare : with inline comment explains why worker exit code is not checked (results verified via result_files)",
+      "defect": "11"
+    },
+    "5_archive_hash_blocking": {
+      "finding": "pb_verify_archive_hash ... || true in main() allowed execution to continue after failed integrity check",
+      "fix": "|| true removed; failure block halts with explicit message and exit 1 before pb_extract_pocketbase",
+      "defect": "11",
+      "security_note": "This was security-critical: a mismatched or missing hash would have allowed extraction and use of an unverified binary"
+    },
+    "6_defect_16_reclassified": {
+      "finding": "R14 claimed defect-16 as IMPL; interceptor baseline for alias_intercept is NEEDS-EXTERNAL",
+      "fix": "Reclassified to IMPL-MD; HOOK_EXPECTED_REMOVED_STATUS[alias_intercept] remains UNRESOLVED__NEEDS_EXTERNAL",
+      "defect": "16"
+    },
+    "7_or_true_inventory_updated": {
+      "retained_benign": 2,
+      "eliminated": 5,
+      "retained_locations": [
+        "pb_wipe_secret_file: dd overwrite may return non-zero on partial write; rm -f unconditionally removes the file",
+        "pb_trap_cleanup: wait returns non-zero for kill'd process; expected behavior"
+      ]
+    }
+  },
+  "or_true_r15_inventory": {
+    "total_executable": 2,
+    "benign_retained": [
+      {
+        "location": "pb_wipe_secret_file",
+        "code": "dd if=/dev/zero of=\"$f\" bs=1024 count=4 2>/dev/null || true",
+        "rationale": "dd may return non-zero on partial write (file shorter than 4 KiB); rm -f below unconditionally removes the file. Best-effort wipe."
+      },
+      {
+        "location": "pb_trap_cleanup",
+        "code": "wait \"$RELEASE1B_PB_PID\" 2>/dev/null || true",
+        "rationale": "wait returns non-zero when process was killed by signal; expected and normal for SIGTERM/SIGKILL. Non-zero carries no actionable information."
+      }
+    ],
+    "eliminated_from_r14": [
+      "pb_apply_schema_migrations line 1132: cp || true -> fail-closed with t_blocking",
+      "pb_apply_schema_migrations line 1136: chmod || true -> fail-closed with t_blocking",
+      "pb_delete_legacy_fixture line 1998: chained || true -> CLEANUP_FAILURE=1 on dual failure",
+      "t_concurrency_auth_group line 3444: wait || true -> bare : with inline comment",
+      "main() line 3849: pb_verify_archive_hash || true -> halt-on-failure block"
+    ]
+  },
+  "defect_count_total": 31,
+  "defect_count_impl": 22,
+  "defect_count_impl_md": 7,
+  "defect_count_needs_external": 2,
+  "defect_classifications_updated_from_r14": {
+    "11": "IMPL (R15 corrected from partial-IMPL — all five non-benign || true eliminated; two benign retained with documentation)",
+    "16": "IMPL-MD (R15 corrected from IMPL — interceptor baseline for alias_intercept is NEEDS-EXTERNAL)",
+    "21": "IMPL (R15 corrected from wrong-IMPL — E4/E6/E8 meanings corrected)"
+  },
+  "defect_number_mapping": {
+    "27": "actor-role rule",
+    "28": "package integrity / HOOK_PROBE_ROUTES key-set match",
+    "29": "path disclosure sanitization in report",
+    "30": "non-atomic export replaced with atomic rename"
+  },
+  "defect_1_note": "Double-invocation not reproduced in R13 delivered artifact. Single-invocation guard retained.",
+  "script_basename": "release1b_cp0.zsh",
+  "output_directory": "release1b_round15/",
+  "r14_preservation": "All Round 14 artifacts in release1b_round14/ remain unchanged.",
+  "r13_preservation": "All Round 13 artifacts at workspace root remain unchanged.",
+  "checkpoint_0_authorization": "NOT AUTHORIZED — --authorize-cp0 flag guard remains in main()"
+}

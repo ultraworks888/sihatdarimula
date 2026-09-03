@@ -1,0 +1,143 @@
+{
+  "manifest_version": "1",
+  "round": "21",
+  "status": "DRAFTED — test design updated for R21 corrections",
+  "test_email_domain": "example.invalid (RFC 2606 §2 reserved)",
+  "synthetic_phone_pattern": "+601_R21TEST_<4-16 digits>",
+  "test_groups": {
+    "preflight": {
+      "T-PREFLIGHT-PORTS":       { "status": "RUNNABLE" },
+      "T-PKG-VERSION":           { "status": "RUNNABLE" },
+      "T-SELFTEST-EMAIL-DOMAIN": { "status": "RUNNABLE — no DNS lookup; tested post-startup via PB API" }
+    },
+    "schema": {
+      "T-SCHEMA-COL-*":               { "status": "RUNNABLE" },
+      "T-SCHEMA-FIELD-CHILDREN-USER": { "status": "RUNNABLE" },
+      "T-SCHEMA-FIELD-PHONE-VERIFIED": {
+        "status": "RUNNABLE",
+        "note": "phone_verified present in isolated env via future-schema migration applied at startup"
+      }
+    },
+    "injection_emergency": {
+      "T-INJECT-CREATE-ANON-ADMIN":  { "status": "RUNNABLE", "contract": "400/401/403 → check no record; 200 → verify NSU; 5xx/transport → HARNESS_ERROR" },
+      "T-INJECT-CREATE-ANON-SADMIN": { "status": "RUNNABLE" },
+      "T-INJECT-CREATE-VERIFIED":    { "status": "RUNNABLE" },
+      "T-INJECT-CREATE-PHONE-VER":   { "status": "RUNNABLE (R21 NEW)", "note": "Create with phone_verified=true" },
+      "T-INJECT-CREATE-UNEXPECTED":  {
+        "status": "RUNNABLE",
+        "r21_fix": "D21-4: 400/401/403 path now verifies no record exists before passing",
+        "verifies": "role not privileged; verified not true; phone_verified not true; tokenKey/passwordHash not exposed"
+      }
+    },
+    "crud": {
+      "T-CRUD-CH-LIST":   { "status": "RUNNABLE" },
+      "T-CRUD-CH-CREATE": { "status": "RUNNABLE", "field": "user= (verified from source)" },
+      "T-CRUD-GL-CREATE": { "status": "RUNNABLE", "collection": "growth_logs" }
+    },
+    "field_protection": {
+      "T-FIELD-ROLE-REJECT":        { "status": "RUNNABLE", "expected": "403 (emergency_hardening hook); persisted role verified" },
+      "T-FIELD-PHONE-REJECT":       { "status": "DEFERRED-MANDATORY → see §28.6 phone_verified tests" },
+      "T-FIELD-ALIAS-REJECT":       { "status": "DEFERRED-MANDATORY → alias design in §26" }
+    },
+    "file_auth": {
+      "T-FILE-AUTH-1": { "status": "RUNNABLE" },
+      "T-FILE-AUTH-2": { "status": "RUNNABLE" },
+      "T-FILE-AUTH-4": { "status": "RUNNABLE" },
+      "T-FILE-AUTH-5": { "status": "DEFERRED-MANDATORY (requires operator binary asset)" },
+      "T-FILE-AUTH-6": { "status": "RUNNABLE" },
+      "T-FILE-AUTH-7": { "status": "DEFERRED-MANDATORY (depends on T-FILE-AUTH-5)" }
+    },
+    "alias_enum": {
+      "T-ALIAS-ENUM-1": { "status": "RUNNABLE" },
+      "T-ALIAS-ENUM-2": { "status": "RUNNABLE" },
+      "T-ALIAS-ENUM-3": { "status": "RUNNABLE" },
+      "T-ALIAS-ENUM-4": { "status": "RUNNABLE" }
+    },
+    "phone_verified_protection": {
+      "note": "R21: future-schema migration applied at startup; guard hook deployed from inline content. No mid-test restart.",
+      "T-PHONE-ORDINARY-SELF-SET":        { "status": "RUNNABLE (R21)", "expects": "403 from guard hook" },
+      "T-PHONE-ORDINARY-SELF-CLEAR":      { "status": "RUNNABLE (R21)", "expects": "403 from guard hook" },
+      "T-PHONE-ADMIN-CANNOT-ELEVATE-ADMIN":{ "status": "RUNNABLE (R21)", "expects": "403 (guard blocks all app-layer callers)" },
+      "T-PHONE-SADMIN-HTTP-BLOCKED":      { "status": "RUNNABLE (R21)", "expects": "403 (guard blocks superadmin HTTP PATCH too)" },
+      "T-PHONE-NSU-HTTP-PASSES":          { "status": "RUNNABLE (R21)", "expects": "200 (NSU bypass)" },
+      "T-PHONE-INJECT-CREATE":            { "status": "RUNNABLE (R21)", "expects": "phone_verified=true not persisted on create" },
+      "T-PHONE-OTP-SETS-BOTH": {
+        "status": "RUNNABLE (R21)",
+        "steps": ["Set ordinary user phone to synth phone", "Request OTP (success mode)", "Read code from phone_otps via NSU", "Verify → adapter sets phone_verified=true via $app.save", "Verify phone_verified=true on user record"],
+        "atomicity": "Partial only — OTP and user update are separate $app.save calls"
+      },
+      "T-PHONE-OTP-ROLLBACK": {
+        "status": "RUNNABLE (R21)",
+        "mode": "db_fail_verify",
+        "steps": ["Request OTP", "Verify → OTP consumed, then adapter throws before user update", "Verify phone_verified=false (unchanged)"],
+        "documented_limitation": "PocketBase JS hooks do not support application transactions"
+      }
+    },
+    "auth": {
+      "T-ANON-READ":         { "status": "RUNNABLE" },
+      "T-NSU-BYPASS":        { "status": "RUNNABLE" },
+      "T-SADMIN-LIST-USERS": { "status": "RUNNABLE" },
+      "T-ADMIN-ESCALATION":  { "status": "RUNNABLE" }
+    },
+    "content": {
+      "T-ART-ANON-POLICY": {
+        "status": "RUNNABLE (SCORED)",
+        "expected": "401 or 403",
+        "current_schema_prediction": "FAIL — articles.listRule is empty string"
+      },
+      "T-ART-ANTENATAL-AUTH-ONLY": {
+        "status": "RUNNABLE (SCORED)",
+        "expected": "403 or 200-with-0-items",
+        "current_schema_prediction": "FAIL or UNRESOLVED (no postnatal articles in isolated db)"
+      },
+      "T-ART-ANTENATAL-VIS":   { "status": "RUNNABLE" },
+      "T-ART-CATEGORY-FILTER": { "status": "RUNNABLE" }
+    },
+    "otp": {
+      "T-OTP-FLOW": {
+        "status": "RUNNABLE (adapter deployed, adapter_status field present)",
+        "lifecycle_verified": "pending_send → sent_active → consumed (distinct terminal state)",
+        "r21_change": "D21-6: lifecycle correct; consumed terminal state via adapter_status"
+      },
+      "T-OTP-DB-FAIL-REQUEST": {
+        "status": "RUNNABLE (R21 NEW)",
+        "verifies": "db_fail_request mode: no sent_active record after rollback"
+      }
+    },
+    "concurrency": {
+      "T-CONCURRENCY-AUTH": { "status": "RUNNABLE" },
+      "T-CONCURRENCY-OTP-SEND": {
+        "status": "RUNNABLE (D21-7)",
+        "verifies": "DB state: at most 1 sent_active record after 5 concurrent requests",
+        "not_assumed": "JSVM serialization not claimed architecturally; observed behavior only",
+        "reports": "active/failed/pending counts from phone_otps query"
+      },
+      "T-CONCURRENCY-IDEMPOTENCY-POST": { "status": "DEFERRED-MANDATORY" }
+    },
+    "hook_smoke": {
+      "T-HOOK-SMOKE-emergency_hardening": {
+        "probe_type": "behavioral",
+        "status": "RUNNABLE (D21-9: classified from source; no route probe)"
+      },
+      "T-HOOK-SMOKE-push_broadcast": {
+        "probe_type": "route",
+        "probe": "POST /api/admin/push-broadcast with empty body → expect 400",
+        "status": "RUNNABLE (D21-9: route resolved from source)"
+      },
+      "T-HOOK-SMOKE-whatsapp": {
+        "probe_type": "route",
+        "probe": "GET /api/admin/whatsapp/config → expect 200 or 401/403",
+        "status": "RUNNABLE (D21-9: route resolved from source)"
+      },
+      "T-HOOK-SMOKE-otp_adapter": {
+        "probe_type": "route",
+        "status": "RUNNABLE"
+      }
+    },
+    "authorized_exclusions": {
+      "E4-EMAIL-CHANGE-LIFECYCLE": "Requires production SMTP",
+      "E6-OTP-REACHABILITY":       "Requires Meta Cloud API credentials",
+      "E8-WARN-LOG-OBSERVABILITY": "Requires production log pipeline"
+    }
+  }
+}

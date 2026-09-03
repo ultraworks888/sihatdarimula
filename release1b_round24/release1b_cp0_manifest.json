@@ -1,0 +1,62 @@
+{
+  "manifest_version": "1",
+  "round": "24",
+  "status": "DRAFTED — static acceptance checks pass by inspection. See delivery message.",
+  "checkpoint_0_authorization_status": "AUTHORIZED BUT NOT EXECUTED — EXECUTION ENVIRONMENT UNAVAILABLE",
+  "artifact_inventory": {
+    "count": 10,
+    "deliverables": [
+      "release1b_cp0.zsh",
+      "release1b_otp_test_adapter.pb.js",
+      "release1b_r24_checksums.sha256",
+      "release1b_r24_checksums.py",
+      "release1b_cp0_manifest.json",
+      "release1b_schema_manifest.json",
+      "release1b_hook_manifest.json",
+      "release1b_test_manifest.json",
+      "release1b_operator_instructions.md",
+      "release1b_round24_review.md"
+    ]
+  },
+  "r24_corrections": {
+    "D24-1":  "Duplicate OTP test invocations removed from pb_run_all_tests(). All OTP lifecycle tests consolidated in t_otp_lifecycle_group(), called exactly once. Static duplicate-ID checker (pbj_dupeid.py) added to harness self-test.",
+    "D24-2":  "pb_delete_local_superuser() now: reads _NSU_REC_FILE (stored during auth), DELETEs the _superusers record via API, verifies absence (GET returns 404 or 401), wipes all credential files, sets CLEANUP_FAILURE on any failure. T-SU-DELETE PASS only after deletion and absence verification.",
+    "D24-3":  "pbj_http.py: bearer token written to a permission-600 single-use curl config file (--config). Never appended to curl subprocess argv. Config file deleted immediately after request (in finally block).",
+    "D24-4":  "pbj_field.py: explicit ALLOWED allowlist; BLOCKED list permanently prohibits token, email, phone, code, password, passwordHash, tokenKey, alias, phone_verified. pbj_tok.py added: non-printing token extractor writes directly to permission-600 file. pbj_cmp.py added: field comparison without printing sensitive values. All phone/phone_verified reads use _assert_user_field() → pbj_cmp.py.",
+    "D24-5":  "pbj_http.py: captures sanitized response headers, content-type, response size, total request time to caller-supplied files. pb_capture_full() exposes all evidence. Alias-enumeration uses pb_capture_full() and compares content-type, size, and timing uniformity.",
+    "D24-6":  "pbj_http.py: auth_mode is an explicit argument ('anon'|'auth'). auth mode='auth' with missing/invalid/symlink auth file: writes 000 to status_out and exits non-zero before invoking curl. Silent downgrade eliminated.",
+    "D24-7":  "t_concurrency_otp_send_group(): requires at least 1 success, exactly 1 sent_active, 0 pending_send, 5 total attempt records, all in terminal states.",
+    "D24-8":  "Adapter error responses sanitized: no internal record IDs, no raw exception text. All cleanup-failure and db_fail messages return generic client-safe strings.",
+    "D24-9":  "Complete CP0 traceability matrix in test manifest.",
+    "D24-10": "Antenatal route inventory in test manifest.",
+    "D24-11": "Email lifecycle classified as T-UNRESOLVED (requires local mail sink). No longer an authorized exclusion. Classified by precedent: cannot observe delivery without local SMTP fixture; production SMTP not authorized.",
+    "D24-12": "Byte counts reported after all writing is complete. Filename in ARTIFACTS list matches delivered filenames exactly. Generation refuses to overwrite populated baseline without --replace."
+  },
+  "nsu_bootstrap_design": {
+    "method": "PocketBase migration (0000000001_r24_nsu_bootstrap.js)",
+    "password_handling": "Local non-exported shell variable; cleared immediately after migration write. Migration file mode 600, isolated root mode 700. Deleted after PB startup.",
+    "auth_endpoint": "/api/collections/_superusers/auth-with-password",
+    "token_extraction": "pbj_tok.py: writes token and record ID directly to protected files; never prints them.",
+    "record_id_storage": "_NSU_REC_FILE (permission-600 tmpfile, used by pb_delete_local_superuser)",
+    "deletion_verification": "DELETE then GET same record; 404 or 401 both accepted as deletion proof.",
+    "runtime_tests": ["T-NSU-BOOTSTRAP-MIG-WRITTEN", "T-SU-CREATE-AUTH", "T-SU-COLL-CHECK", "T-SU-TOKEN-VALID", "T-SU-DELETE"]
+  },
+  "http_helper_design": {
+    "auth_mode": "Explicit 'anon'|'auth' parameter. 'auth' fails hard if auth file missing/invalid/symlink.",
+    "token_in_process_args": false,
+    "auth_mechanism": "Permission-600 curl config file (--config), deleted after request.",
+    "evidence_outputs": "status, response_path, sanitized_headers, content_type, response_size, time_total"
+  },
+  "field_access_design": {
+    "pbj_field_py": "Explicit ALLOWED allowlist; BLOCKED permanently prohibits sensitive fields.",
+    "pbj_tok_py": "Non-printing token extractor; writes directly to protected file.",
+    "pbj_cmp_py": "Field comparison without printing; returns MATCH/MISMATCH.",
+    "sensitive_field_reads": "_assert_user_field() → pbj_cmp.py for phone, phone_verified, role"
+  },
+  "rate_limit_status": {
+    "lifecycle_capability": "TESTABLE",
+    "persistent_rate_limit": "DEFERRED-MANDATORY",
+    "idempotency": "DEFERRED-MANDATORY",
+    "production_readiness": "NOT AUTHORIZED"
+  }
+}

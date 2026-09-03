@@ -1,0 +1,30 @@
+# Release 1B — Round 15 Checksums
+# Non-recursive integrity design:
+#   - This file covers all other Round 15 artifacts.
+#   - This file does NOT contain its own hash (non-recursive by design).
+#   - The manifest (release1b_cp0_manifest.json) covers the script and
+#     other artifacts but not itself; this file covers the manifest.
+#
+# R14 authoritative values are recorded in release1b_round14_review.md §A.
+# R15 values below are PENDING_FINAL_STATIC_VALIDATION because R15 artifacts
+# changed from R14 (the script and manifests were corrected) and SHA-256
+# hashes cannot be computed within the tool interface.
+#
+# Operators must compute these values after downloading the artifacts
+# and before executing the script in any mode.
+#
+# Computation commands (run from release1b_round15/ directory):
+#   shasum -a 256 <filename>
+#   wc -c < <filename>
+#
+# Format: SHA256  BYTES  FILENAME
+
+PENDING_FINAL_STATIC_VALIDATION  PENDING_FINAL_STATIC_VALIDATION  release1b_cp0.zsh
+PENDING_FINAL_STATIC_VALIDATION  PENDING_FINAL_STATIC_VALIDATION  release1b_cp0_manifest.json
+PENDING_FINAL_STATIC_VALIDATION  PENDING_FINAL_STATIC_VALIDATION  release1b_schema_manifest.json
+PENDING_FINAL_STATIC_VALIDATION  PENDING_FINAL_STATIC_VALIDATION  release1b_hook_manifest.json
+PENDING_FINAL_STATIC_VALIDATION  PENDING_FINAL_STATIC_VALIDATION  release1b_test_manifest.json
+PENDING_FINAL_STATIC_VALIDATION  PENDING_FINAL_STATIC_VALIDATION  release1b_round15_review.md
+
+# NOTE: release1b_round15_checksums.sha256 (this file) is NOT listed above.
+# Its hash must be recorded externally after all other values are filled.

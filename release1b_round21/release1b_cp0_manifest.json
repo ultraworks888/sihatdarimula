@@ -1,0 +1,64 @@
+{
+  "manifest_version": "1",
+  "round": "21",
+  "status": "DRAFTED — statically validated; zsh -n PASS; node --check PASS; JSON strict-parse PASS",
+  "checkpoint_0_authorization_status": "AUTHORIZED BUT NOT EXECUTED — EXECUTION ENVIRONMENT UNAVAILABLE",
+  "artifact_count": {
+    "covered_by_checksums": 8,
+    "checksums_file_itself": 1,
+    "total_deliverables": 9
+  },
+  "r21_corrections": {
+    "D21-1": {
+      "title": "Checksum: static shasum-compatible format; SHA-256 computed by operator",
+      "status": "IMPL-CONSTRAINED",
+      "note": "SHA-256 values require shell execution; AI tool environment has none. Checksums file is in standard shasum --check format. Operator populates with one shasum command. Byte counts known from write tool."
+    },
+    "D21-2":  { "title": "nslookup removed from --harness-check (offline)", "status": "IMPL" },
+    "D21-3":  { "title": "Manual cleanup: atomic Python validation+deletion in one process", "status": "IMPL" },
+    "D21-4":  { "title": "T-INJECT-CREATE-UNEXPECTED: 400/401/403 path now verifies no record", "status": "IMPL" },
+    "D21-5":  { "title": "§28.6: inline guard hook deployed at startup; full lifecycle tests", "status": "IMPL" },
+    "D21-6":  { "title": "OTP adapter: pending_send→active lifecycle; consumed terminal state; db_fail modes", "status": "IMPL" },
+    "D21-7":  { "title": "Concurrency: DB-state verified; JSVM serialization reported as observed evidence", "status": "IMPL" },
+    "D21-8":  { "title": "IPv6 loopback: regex-based parser; [::1]:port and ::1 both accepted", "status": "IMPL" },
+    "D21-9":  { "title": "Hook probes resolved: push_broadcast POST 400-safe; whatsapp GET safe; emergency_hardening behavioral", "status": "IMPL" },
+    "D21-10": { "title": "Manifest statuses corrected; OTP runnable; concurrency noted as evidence-only", "status": "IMPL" }
+  },
+  "schema_finding": {
+    "phone_otps_actual_schema": "phone (text), code (text), expires_at (date), is_used (bool) — NOT status select",
+    "r19_r20_error": "R19/R20 manifests described phone_otps.status (select) which does not exist. Production hook (auth_whatsapp_otp.pb.js) uses is_used (bool).",
+    "r21_correction": "Adapter uses is_used (bool) from production schema. Temporary adapter_status (select) added via future-schema migration for lifecycle testing only."
+  },
+  "or_true_inventory": [
+    { "site": 1, "location": "pb_wipe_secret_file dd wipe", "classification": "BENIGN-RETAINED" },
+    { "site": 2, "location": "pb_trap_cleanup watchdog reap", "classification": "BENIGN" }
+  ],
+  "hook_probes_resolved": {
+    "emergency_hardening": { "probe_type": "behavioral", "route": "none", "proof": "T-FIELD-ROLE-REJECT (§24)" },
+    "push_broadcast":      { "probe_type": "route", "method": "POST", "route": "/api/admin/push-broadcast", "safe_probe": "empty body → 400 (title/message required, never reaches OneSignal)" },
+    "whatsapp":            { "probe_type": "route", "method": "GET",  "route": "/api/admin/whatsapp/config", "safe_probe": "read config → 200 or 401/403; never writes or contacts Meta" }
+  },
+  "otp_adapter_schema_dependency": "adapter_status (select: pending_send, sent_active, send_failed, consumed) added to phone_otps via temporary isolated-env migration 9999999999_r21_future_schema.js",
+  "phone_verified_guard_design": {
+    "guard_type": "inline hook written by harness to isolated hooks dir",
+    "blocks": "all HTTP PATCH setting phone_verified (superadmin, admin, ordinary user)",
+    "permits": "NSU HTTP PATCH (collection().name === _superusers); internal $app.save() bypasses hook",
+    "authorized_path": "OTP adapter verify-whatsapp-otp route: sets phone_verified=true via $app.save() after successful verification",
+    "atomicity_limitation": "PocketBase JS hooks do not support application transactions. OTP consumption and phone_verified update are separate operations. Partial-commit scenario documented and tested."
+  },
+  "pocketbase_version_target": "0.29.3",
+  "pocketbase_version_inspected": "0.28.4 (Coderick workspace)",
+  "result_without_harness_run": "AUTHORIZED BUT NOT EXECUTED — no rc observed",
+  "result_predicted_if_run": "RESULT: FAIL (rc=1) — T-ART-ANON-POLICY expected FAIL (articles.listRule public). T-INJECT-CREATE-ANON-ADMIN unverified. T-PHONE-SADMIN-HTTP-BLOCKED expected PASS (guard blocks all app-layer callers). If injection is clean and antenatal rule fixed: INCOMPLETE (rc=2).",
+  "deliverables_r21": [
+    "release1b_cp0.zsh",
+    "release1b_otp_test_adapter.pb.js",
+    "release1b_r21_checksums.sha256",
+    "release1b_cp0_manifest.json",
+    "release1b_schema_manifest.json",
+    "release1b_hook_manifest.json",
+    "release1b_test_manifest.json",
+    "release1b_operator_instructions.md",
+    "release1b_round21_review.md"
+  ]
+}

@@ -1,0 +1,21 @@
+# Release 1B Round 23 — Integrity Baseline
+# Format: <SHA256>  <FILENAME> (shasum -a 256 --check compatible)
+# Covers 8 artifacts. Does not cover itself or release1b_r23_checksums.py.
+#
+# UNRESOLVED PROVENANCE LIMITATION (D23-11):
+#   SHA-256 pre-computation is impossible in the AI tool environment.
+#   This is an acknowledged, irresolvable constraint of the delivery
+#   mechanism, not a corrected defect. Run --generate to establish the
+#   baseline after receipt. Record the verifier's own integrity separately.
+#
+# GENERATE (first time, from release1b_round23/ directory):
+#   python3 release1b_r23_checksums.py --generate
+#
+# VERIFY:
+#   python3 release1b_r23_checksums.py --verify
+#   — or —
+#   shasum -a 256 --check release1b_r23_checksums.sha256
+#
+# THREAT MODEL: This file and release1b_r23_checksums.py can both be
+# tampered with. Verify their own integrity out-of-band before trusting
+# the generated baseline.

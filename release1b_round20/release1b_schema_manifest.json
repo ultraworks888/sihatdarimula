@@ -1,0 +1,172 @@
+{
+  "manifest_version": "1",
+  "round": "20",
+  "status": "DRAFTED — schema sourced from authoritative migration files",
+  "inspection_provenance": {
+    "source_type": "Coderick-managed workspace PocketBase v0.28.4",
+    "migration_source": "pb_migrations/ directory, read-only",
+    "production_host": "app.sihatdarimula.my — NOT contacted",
+    "caveat": "Findings are schema-level only. No runtime behavior observed. Behavioral predictions require verification on isolated v0.29.3 instance."
+  },
+  "security_findings": {
+    "S-1": {
+      "title": "Role Injection on Create",
+      "severity": "HIGH",
+      "source": "1782897956_add_admin_roles_and_permissions_8689.js",
+      "finding": "users.createRule is empty string (public). No hook intercepts onRecordCreateRequest. Role injection on registration POST is unverified but possible.",
+      "status": "UNVERIFIED — requires T-INJECT-CREATE-ANON-ADMIN on isolated v0.29.3",
+      "cp0_action": "Emergency blocking test group §28.5 verifies this"
+    },
+    "S-2": {
+      "title": "phone_verified and is_alias_account absent from schema",
+      "severity": "MEDIUM",
+      "source": "All migration files inspected",
+      "finding": "phone_verified: tested in R20 §28.6 via temporary local schema migration. is_alias_account: tested via alias enum tests (§26) using ordinary accounts.",
+      "status": "SCHEMA-GAP with R20 local schema test path"
+    },
+    "S-3": {
+      "title": "Committed plaintext credential in seed migration",
+      "severity": "CRITICAL",
+      "source": "1782898775_seed_superadmin_user_4fd7.js",
+      "finding": "Seed migration contains plaintext credential. Excluded from CP0 isolated run (D-3). See operator instructions §9 for separate incident-response guidance.",
+      "status": "INCIDENT-RESPONSE REQUIRED — separate from CP0 execution; harness excludes this migration; credential never used or referenced by harness"
+    }
+  },
+  "antenatal_policy": {
+    "requirement": "Authentication precedes article access. Ordinary users receive only pregnancy-classified content. Unknown/missing categories fail closed.",
+    "current_articles_listRule": "\"\" (public — ANY caller can list articles)",
+    "gap": "Server-side antenatal enforcement absent. articles.listRule must be restricted.",
+    "required_fix": "articles.listRule = \"@request.auth.id != ''\"",
+    "server_side_postnatal_filter": "Not enforced. Frontend-only enforcement is current approach.",
+    "test_coverage": "T-ART-ANON-POLICY (scored FAIL with current schema); T-ART-ANTENATAL-AUTH-ONLY (scored FAIL if postnatal articles exist)"
+  },
+  "phone_future_state": {
+    "field": "phone_verified",
+    "type": "bool",
+    "design": "To be added in a future coordinated deployment with phone_verified=true set only by admin/hook after OTP verification",
+    "r20_test_approach": "Temporary local schema migration applied in isolated env (§28.6). Tests: self-set blocked (expects 403), admin-set allowed (expects 200), create-path injection (expects rejection or non-persisted value).",
+    "source_project_modification": "NONE — temporary migration written to isolated migrations dir only"
+  },
+  "collections": {
+    "users": {
+      "type": "auth",
+      "source_migrations": [
+        "baseline: PocketBase built-in auth collection",
+        "1782833823_init_mamacare_schema_e6ce.js — adds name, avatar",
+        "1782864178_add_i18n_phone_and_article_translations_c927.js — adds phone, language",
+        "1782897956_add_admin_roles_and_permissions_8689.js — adds role; updates rules"
+      ],
+      "key_fields": {
+        "name":     { "type": "text", "max": 200 },
+        "avatar":   { "type": "file", "max_select": 1 },
+        "phone":    { "type": "text", "max": 20 },
+        "language": { "type": "select", "values": ["en","ms","zh"], "max_select": 1 },
+        "role":     { "type": "select", "values": ["user","admin","superadmin"], "max_select": 1 },
+        "phone_verified":  { "type": "ABSENT — R20: tested via temporary local schema migration" },
+        "is_alias_account": { "type": "ABSENT — alias enum tests use ordinary role=user accounts" }
+      },
+      "access_rules": {
+        "listRule":   "id = @request.auth.id || @request.auth.role = 'admin' || @request.auth.role = 'superadmin'",
+        "viewRule":   "id = @request.auth.id || @request.auth.role = 'admin' || @request.auth.role = 'superadmin'",
+        "createRule": "\"\" — public; S-1 CREATE-PATH INJECTION GAP",
+        "updateRule": "id = @request.auth.id || @request.auth.role = 'superadmin'",
+        "deleteRule": "id = @request.auth.id || @request.auth.role = 'superadmin'"
+      },
+      "test_email_domain_r20": "example.invalid (RFC 2606 §2 reserved; cannot be delivered to real mailbox)"
+    },
+    "children": {
+      "type": "base",
+      "source_migration": "1782833823_init_mamacare_schema_e6ce.js",
+      "key_fields": {
+        "user": { "type": "relation", "collection": "users", "max_select": 1, "cascade_delete": true, "required": true, "note": "Field name is 'user', not 'parent'" },
+        "name": { "type": "text", "required": true, "max": 100 }
+      },
+      "access_rules": {
+        "listRule":   "user = @request.auth.id || @request.auth.role = 'admin' || @request.auth.role = 'superadmin'",
+        "viewRule":   "user = @request.auth.id || @request.auth.role = 'admin' || @request.auth.role = 'superadmin'",
+        "createRule": "@request.auth.id != '' && @request.body.user = @request.auth.id",
+        "updateRule": "user = @request.auth.id || @request.auth.role = 'admin' || @request.auth.role = 'superadmin'",
+        "deleteRule": "user = @request.auth.id || @request.auth.role = 'admin' || @request.auth.role = 'superadmin'"
+      }
+    },
+    "articles": {
+      "type": "base",
+      "source_migrations": [
+        "1782833823_init_mamacare_schema_e6ce.js",
+        "1782864178_add_i18n_phone_and_article_translations_c927.js",
+        "1782886006 — adds is_pregnancy bool and category select"
+      ],
+      "key_fields": {
+        "title":        { "type": "text", "required": true },
+        "content":      { "type": "editor" },
+        "category":     { "type": "select", "values": ["growth","nutrition","activity","wellbeing","immunisation","pregnancy","general"], "max_select": 1 },
+        "is_pregnancy": { "type": "bool", "note": "R19/R20: this is the antenatal gate field; not articles.type" },
+        "is_published": { "type": "bool" }
+      },
+      "access_rules": {
+        "listRule":   "\"\" — PUBLIC; FAILS antenatal access requirement",
+        "viewRule":   "\"\" — PUBLIC",
+        "createRule": "@request.auth.role = 'admin' || @request.auth.role = 'superadmin'",
+        "updateRule": "@request.auth.role = 'admin' || @request.auth.role = 'superadmin'",
+        "deleteRule": "@request.auth.role = 'admin' || @request.auth.role = 'superadmin'"
+      },
+      "required_fix_before_publication": "Set listRule = \"@request.auth.id != ''\" at minimum"
+    },
+    "growth_logs": {
+      "type": "base",
+      "source_migration": "1782833823_init_mamacare_schema_e6ce.js",
+      "note": "Previously misnamed 'growth_records' in R18. Corrected in R19.",
+      "key_fields": {
+        "user":      { "type": "relation", "collection": "users", "required": true },
+        "child":     { "type": "relation", "collection": "children" },
+        "weight_kg": { "type": "number" },
+        "height_cm": { "type": "number" }
+      },
+      "access_rules": {
+        "listRule":   "user = @request.auth.id || @request.auth.role = 'admin' || @request.auth.role = 'superadmin'",
+        "createRule": "@request.auth.id != '' && @request.body.user = @request.auth.id",
+        "updateRule": "user = @request.auth.id || @request.auth.role = 'admin' || @request.auth.role = 'superadmin'",
+        "deleteRule": "user = @request.auth.id || @request.auth.role = 'admin' || @request.auth.role = 'superadmin'"
+      }
+    },
+    "phone_otps": {
+      "type": "base",
+      "source_migration": "1783946967_add_phone_otps_d039.js",
+      "key_fields": {
+        "phone":      { "type": "text" },
+        "code":       { "type": "text" },
+        "status":     { "type": "select", "values": ["pending_send","sent/active","send_failed"], "max_select": 1 },
+        "expires_at": { "type": "date" }
+      },
+      "access_rules": {
+        "listRule": null,
+        "viewRule": null,
+        "createRule": null,
+        "updateRule": null,
+        "deleteRule": null,
+        "note": "All rules null (superuser-only). Harness reads OTPs via native superuser token. OTP adapter writes to this collection."
+      }
+    },
+    "other_collections": {
+      "nutrition_logs": { "source": "1782833823", "note": "R19: confirmed present" },
+      "activity_logs":  { "source": "1782833823", "note": "R19: corrected from 'activities'" },
+      "wellbeing_logs": { "source": "1782833823", "note": "R19: confirmed present" },
+      "immunisations":  { "source": "1782833823", "note": "R19: British spelling confirmed; not 'immunizations'" },
+      "bookmarks":      { "source": "1782833823" },
+      "notifications":  { "source": "1782833823" },
+      "notification_preferences": { "source": "1782833823" },
+      "notification_queue":       { "source": "1782833823" },
+      "push_subscriptions":       { "source": "1782833823" },
+      "courses":                  { "source": "1782833823" },
+      "enrollments":              { "source": "1782833823", "note": "R19: newborn_enrollments absent; this is the correct name" },
+      "lesson_progress":          { "source": "1782833823" }
+    },
+    "absent_collections": {
+      "progress_notes":       "NOT PRESENT in any migration",
+      "newborn_enrollments":  "NOT PRESENT in any migration",
+      "growth_records":       "NOT PRESENT — actual name is growth_logs",
+      "activities":           "NOT PRESENT — actual name is activity_logs",
+      "immunizations":        "NOT PRESENT — British spelling: immunisations"
+    }
+  }
+}

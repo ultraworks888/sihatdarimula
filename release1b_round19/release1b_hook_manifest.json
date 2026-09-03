@@ -1,0 +1,198 @@
+{
+  "manifest_version": "1",
+  "round": "19",
+  "status": "DRAFTED — statically validated against pb_hooks/ source files",
+  "basis": "Fully rewritten in R19. Hook inventory now reflects actual files found in pb_hooks/. Hooks 'onboarding' and 'alias_intercept' removed — no such files exist. 'auth_whatsapp_otp' and 'emergency_hardening' added. HOOK_OTP_PHONE_ROUTE resolved from source. HOOK_OTP_MOCK_CONTROL_ROUTE defined for local test adapter (not a production endpoint).",
+  "inspection_provenance": {
+    "method": "Read-only inspection of pb_hooks/ directory",
+    "files_found": [
+      "ai_chat.pb.js",
+      "analytics.pb.js",
+      "auth_whatsapp_otp.pb.js",
+      "emergency_users_hardening.pb.js",
+      "export.pb.js",
+      "forgot_password_whatsapp.pb.js",
+      "lms_whatsapp.pb.js",
+      "meta_whatsapp.pb.js",
+      "push_broadcast.pb.js",
+      "push_reminders.pb.js",
+      "whatsapp.pb.js",
+      "whatsapp_webhook.pb.js"
+    ],
+    "files_absent": ["onboarding.pb.js", "alias_intercept.pb.js"],
+    "caveat": "Behavior of each hook verified only by source reading, not by runtime execution. v0.29.3 JSVM compatibility not verified."
+  },
+  "r19_corrections": {
+    "onboarding_removed": "R18 included 'onboarding' in HOOK_SRC_PATHS. No onboarding.pb.js exists. Removed.",
+    "alias_intercept_removed": "R18 included 'alias_intercept' in HOOK_SRC_PATHS. No alias_intercept.pb.js exists. Removed. The alias-account intercept behavior is either unimplemented or handled differently.",
+    "HOOK_OTP_PHONE_ROUTE_resolved": "R18: UNRESOLVED__NEEDS_EXTERNAL. R19: /api/auth/request-whatsapp-otp — resolved from auth_whatsapp_otp.pb.js source.",
+    "HOOK_OTP_MOCK_CONTROL_ROUTE_designed": "R18: UNRESOLVED__NEEDS_EXTERNAL. R19: /api/test/otp-control — defined as the local-adapter control route. NOT a production endpoint. Requires operator deployment of the OTP test adapter before T-CONCURRENCY-OTP-SEND can run.",
+    "verify_route_added": "POST /api/auth/verify-whatsapp-otp — the OTP verification endpoint from auth_whatsapp_otp.pb.js, absent from R18."
+  },
+  "hooks_present": {
+    "auth_whatsapp_otp": {
+      "file": "pb_hooks/auth_whatsapp_otp.pb.js",
+      "routes": [
+        "POST /api/auth/request-whatsapp-otp",
+        "POST /api/auth/verify-whatsapp-otp"
+      ],
+      "description": "Phone/WhatsApp OTP flow. Generates 6-digit OTP, stores in phone_otps, sends via Meta Cloud API using credentials from lms_settings (whatsapp_phone_number_id, whatsapp_access_token, whatsapp_api_version). Invalidates prior unused OTPs for the same phone. Returns 503 if credentials not configured.",
+      "src_path": "UNRESOLVED__NEEDS_EXTERNAL__absolute_path",
+      "sha256": "UNRESOLVED__NEEDS_EXTERNAL__hook_sha256",
+      "probe_route": "POST /api/auth/request-whatsapp-otp",
+      "probe_method": "POST",
+      "expected_status_after_removal": "404",
+      "v029_compatibility_note": "Source uses $app, $http.send, Record, routerAdd — standard PocketBase hook API. No JSVM-specific binding noted beyond $app.findFirstRecordByFilter and $app.findRecordsByFilter. Recommend testing on v0.29.3 to confirm these bindings are present.",
+      "security_notes": {
+        "otp_not_in_response": "OTP code is NOT returned in the HTTP response body — stored only in phone_otps table",
+        "prior_invalidation": "Invalidates all prior unused OTPs for the same phone on each new request",
+        "expiry": "10-minute TTL (Date.now() + 10 * 60 * 1000)",
+        "meta_failure_behavior": "Returns 500 with error detail if Meta API call fails; OTP record already written before the call — possible issue: OTP stored but not delivered",
+        "credentials_check": "Returns 503 if whatsapp_phone_number_id or whatsapp_access_token absent from lms_settings"
+      }
+    },
+    "emergency_users_hardening": {
+      "file": "pb_hooks/emergency_users_hardening.pb.js",
+      "description": "Role escalation protection for PATCH to users collection. Fires on onRecordUpdateRequest for 'users'. Allows pass-through if: body does not contain 'role'; or caller is application superadmin (role='superadmin'); or caller is native _superusers. Blocks all other role writes with 403.",
+      "src_path": "UNRESOLVED__NEEDS_EXTERNAL__absolute_path",
+      "sha256": "UNRESOLVED__NEEDS_EXTERNAL__hook_sha256",
+      "probe_route": "PATCH /api/collections/users/records/{id} with role in body",
+      "probe_method": "PATCH",
+      "expected_status_after_removal": "200 (role write would succeed without hook — regression)",
+      "coverage": "UPDATE path only. CREATE path (POST /api/collections/users/records) is NOT intercepted. This is security gap S-1.",
+      "v029_compatibility_note": "Uses e.auth.collection().name binding documented as v0.28.4. Has a catch block that logs and blocks if binding unavailable (safe failure). Must be verified on v0.29.3. T-NSU-HOOK-BEHAVIOR tests this path."
+    },
+    "push_broadcast": {
+      "file": "pb_hooks/push_broadcast.pb.js",
+      "description": "Push notification broadcast admin endpoint.",
+      "src_path": "UNRESOLVED__NEEDS_EXTERNAL__absolute_path",
+      "sha256": "UNRESOLVED__NEEDS_EXTERNAL__hook_sha256",
+      "probe_route": "UNRESOLVED__NEEDS_EXTERNAL__hook_probe_route",
+      "probe_method": "POST",
+      "expected_status_after_removal": "404"
+    },
+    "whatsapp": {
+      "file": "pb_hooks/whatsapp.pb.js",
+      "description": "WhatsApp integration core hook.",
+      "src_path": "UNRESOLVED__NEEDS_EXTERNAL__absolute_path",
+      "sha256": "UNRESOLVED__NEEDS_EXTERNAL__hook_sha256",
+      "probe_route": "UNRESOLVED__NEEDS_EXTERNAL__hook_probe_route",
+      "probe_method": "POST",
+      "expected_status_after_removal": "404"
+    },
+    "whatsapp_webhook": {
+      "file": "pb_hooks/whatsapp_webhook.pb.js",
+      "description": "WhatsApp inbound webhook handler. Processes status updates and inbound messages from Meta. Uses dedup_key to prevent duplicate processing.",
+      "src_path": "UNRESOLVED__NEEDS_EXTERNAL__absolute_path",
+      "sha256": "UNRESOLVED__NEEDS_EXTERNAL__hook_sha256",
+      "probe_route": "UNRESOLVED__NEEDS_EXTERNAL__hook_probe_route",
+      "probe_method": "POST",
+      "expected_status_after_removal": "404",
+      "note": "Harness must NOT send real WhatsApp webhook events to this endpoint even in isolated mode."
+    },
+    "analytics": {
+      "file": "pb_hooks/analytics.pb.js",
+      "description": "Analytics and reporting endpoints.",
+      "src_path": "UNRESOLVED__NEEDS_EXTERNAL__absolute_path",
+      "sha256": "UNRESOLVED__NEEDS_EXTERNAL__hook_sha256"
+    },
+    "export": {
+      "file": "pb_hooks/export.pb.js",
+      "description": "Data export endpoint.",
+      "src_path": "UNRESOLVED__NEEDS_EXTERNAL__absolute_path",
+      "sha256": "UNRESOLVED__NEEDS_EXTERNAL__hook_sha256"
+    },
+    "ai_chat": {
+      "file": "pb_hooks/ai_chat.pb.js",
+      "description": "Gemini AI chat endpoint. Reads Gemini API key from ai_settings collection.",
+      "src_path": "UNRESOLVED__NEEDS_EXTERNAL__absolute_path",
+      "sha256": "UNRESOLVED__NEEDS_EXTERNAL__hook_sha256"
+    },
+    "lms_whatsapp": {
+      "file": "pb_hooks/lms_whatsapp.pb.js",
+      "description": "LMS-triggered WhatsApp notifications.",
+      "src_path": "UNRESOLVED__NEEDS_EXTERNAL__absolute_path",
+      "sha256": "UNRESOLVED__NEEDS_EXTERNAL__hook_sha256"
+    },
+    "meta_whatsapp": {
+      "file": "pb_hooks/meta_whatsapp.pb.js",
+      "description": "Meta WhatsApp API wrapper.",
+      "src_path": "UNRESOLVED__NEEDS_EXTERNAL__absolute_path",
+      "sha256": "UNRESOLVED__NEEDS_EXTERNAL__hook_sha256"
+    },
+    "push_reminders": {
+      "file": "pb_hooks/push_reminders.pb.js",
+      "description": "Scheduled push reminder notifications.",
+      "src_path": "UNRESOLVED__NEEDS_EXTERNAL__absolute_path",
+      "sha256": "UNRESOLVED__NEEDS_EXTERNAL__hook_sha256"
+    },
+    "forgot_password_whatsapp": {
+      "file": "pb_hooks/forgot_password_whatsapp.pb.js",
+      "description": "Password reset via WhatsApp.",
+      "src_path": "UNRESOLVED__NEEDS_EXTERNAL__absolute_path",
+      "sha256": "UNRESOLVED__NEEDS_EXTERNAL__hook_sha256"
+    }
+  },
+  "hooks_absent": {
+    "onboarding": "No onboarding.pb.js found in pb_hooks/. R18 assumed this hook existed. Removed from HOOK_SRC_PATHS.",
+    "alias_intercept": "No alias_intercept.pb.js found in pb_hooks/. R18 assumed this hook existed. Removed from HOOK_SRC_PATHS. Alias-account intercept behavior is either not implemented or handled by another mechanism (NEEDS-EXTERNAL)."
+  },
+  "phone_otp_hook": {
+    "HOOK_OTP_PHONE_ROUTE": {
+      "status": "RESOLVED",
+      "value": "/api/auth/request-whatsapp-otp",
+      "source": "auth_whatsapp_otp.pb.js line 21",
+      "note": "NOT PocketBase email OTP. This is the custom hook-registered route for phone/WhatsApp OTP."
+    },
+    "HOOK_OTP_VERIFY_ROUTE": {
+      "status": "RESOLVED",
+      "value": "/api/auth/verify-whatsapp-otp",
+      "source": "auth_whatsapp_otp.pb.js line 120"
+    },
+    "HOOK_OTP_MOCK_CONTROL_ROUTE": {
+      "status": "DESIGNED — NOT DEPLOYED",
+      "value": "/api/test/otp-control",
+      "note": "This route is defined for the local OTP test adapter only. It MUST NOT be added to production hooks. The operator must deploy the OTP test adapter hook file (release1b_otp_test_adapter.pb.js) to the isolated harness hooks directory before T-CONCURRENCY-OTP-SEND can run. See §6 of operator instructions.",
+      "local_adapter_design": {
+        "purpose": "Replaces direct Meta Cloud API calls with a controllable in-process mock",
+        "routes": {
+          "POST /api/auth/request-whatsapp-otp": "Same signature as production. Generates OTP, stores in phone_otps, records send-attempt in mock state. Never calls Meta.",
+          "POST /api/test/otp-control": "Resets mock state, injects failure modes, reads send-attempt count. Accessible only from localhost. Body: { action: 'reset'|'set_failure'|'get_state' }.",
+          "GET /api/test/otp-read/{phone}": "Returns latest unused OTP code for phone (for harness OTP retrieval without real delivery). Localhost only."
+        },
+        "mock_states_modeled": ["pending_send", "sent_active", "send_failed"],
+        "never_logs": "OTP values, raw phone numbers, raw provider responses",
+        "rate_limit_behavior": "Records attempt count per phone per window; honors the same invariants as production would",
+        "isolation_guarantee": "Adapter file is copied to isolated hooks dir only; never to production hooks dir"
+      }
+    },
+    "endpoint_auth_policy": {
+      "status": "RESOLVED from source",
+      "value": "Anonymous — no authentication required for POST /api/auth/request-whatsapp-otp",
+      "source": "auth_whatsapp_otp.pb.js — no auth check before processing request body",
+      "note": "Phone-first registration flow: caller provides phone number, receives OTP via WhatsApp, then verifies. No auth token required for request or verify steps."
+    },
+    "rate_limit_invariants": {
+      "status": "NEEDS-EXTERNAL",
+      "current_behavior": "Production hook invalidates prior OTPs for same phone but does not enforce a rate limit or quota. No 429 response is produced. Rate-limit enforcement must be added or confirmed absent.",
+      "required_before_test": [
+        "Whether a rate limit is implemented or planned",
+        "If rate limited: allowed-send count per window, window duration, expected HTTP status (429 or other)",
+        "Whether send failures consume quota",
+        "Provider-attempt count expectation",
+        "Allowed concurrent active OTP count per phone"
+      ]
+    }
+  },
+  "idempotency_hook_note": {
+    "description": "T-CONCURRENCY-IDEMPOTENCY-POST is MANDATORY-DEFERRED and IMPLEMENTATION INCOMPLETE. No idempotency-enforcing hook was identified in pb_hooks/ during static inspection. Endpoint route, idempotency key header, and duplicate-record behavior are all NEEDS-EXTERNAL.",
+    "status": "NEEDS-EXTERNAL"
+  },
+  "global_constants_r19": {
+    "HOOK_SRC_PATHS_keys": ["emergency_hardening", "auth_whatsapp_otp", "push_broadcast", "whatsapp"],
+    "HOOK_OTP_PHONE_ROUTE": "/api/auth/request-whatsapp-otp (RESOLVED)",
+    "HOOK_OTP_VERIFY_ROUTE": "/api/auth/verify-whatsapp-otp (RESOLVED)",
+    "HOOK_OTP_MOCK_CONTROL_ROUTE": "/api/test/otp-control (DESIGNED — requires local adapter deployment by operator)"
+  },
+  "nsu_hook_behavior_note": "T-NSU-HOOK-BEHAVIOR tests the _superusers bypass path in emergency_users_hardening.pb.js. Specifically verifies e.auth.collection().name === '_superusers' returns true for a native _superusers session on v0.29.3."
+}

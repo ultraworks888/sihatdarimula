@@ -1,0 +1,44 @@
+{
+  "manifest_version": "1",
+  "round": "23",
+  "phone_otps_production_schema": {
+    "migration": "1783946967_add_phone_otps_d039.js",
+    "fields": {
+      "phone":      "text (candidate phone; NOT set in users.phone until verified)",
+      "code":       "text",
+      "expires_at": "date",
+      "is_used":    "bool (production field; set true on consume)"
+    },
+    "temporary_fields_isolated_env_only": {
+      "adapter_status":      "select: pending_send, sent_active, send_failed, expired, consumed",
+      "requesting_user_id":  "text (D23-4: stores e.auth.id from request; required for verification)"
+    },
+    "migration_source": "9999999999_r23_future_schema.js"
+  },
+  "users_schema": {
+    "key_fields": {
+      "phone":          "text (only written by OTP adapter TX-3 or NSU emergency recovery)",
+      "phone_verified": "bool (future; isolated env only)"
+    }
+  },
+  "otp_user_binding": {
+    "field": "requesting_user_id",
+    "purpose": "Binds OTP to the requesting user. TX-3 rejects e.auth.id != requesting_user_id.",
+    "cross_user_attack": "Rejected with 403 or 400 (D23-4)"
+  },
+  "expiry_design": {
+    "pattern": "Return-from-TX commits expired state; throw outside TX rejects the request.",
+    "no_throw_after_save": true,
+    "test": "T-OTP-EXPIRED"
+  },
+  "tx2_cleanup_design": {
+    "cleanup_method": "Separate $app.runInTransaction for pending → send_failed transition",
+    "error_handling": "Not swallowed. 500 returned if cleanup fails (mode: db_fail_request_cleanup_fail).",
+    "test": "T-OTP-DB-FAIL-CLEANUP-FAIL"
+  },
+  "transaction_api": {
+    "reference": "https://pocketbase.io/docs/js-records/#transaction",
+    "note": "D22-2 false limitation removed. D23-5/6 patterns correct."
+  },
+  "rate_limit_note": "D23-12: Persistent rate-limit policy DEFERRED-MANDATORY. No safety claim made."
+}

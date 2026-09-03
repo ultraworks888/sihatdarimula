@@ -1,0 +1,341 @@
+{
+  "manifest_version": "1",
+  "round": "24",
+
+  "traceability_matrix": {
+    "note": "Maps each authorized Checkpoint 0 requirement to test ID, harness function, expected result, blocking classification.",
+    "tests": [
+      {
+        "requirement": "PocketBase v0.29.3 binary verified",
+        "test_id": "T-PKG-VERSION",
+        "harness_fn": "pb_verify_binary_version",
+        "expected": "PASS",
+        "blocking": true
+      },
+      {
+        "requirement": "NSU created by migration; auth via /api/collections/_superusers/auth-with-password",
+        "test_id": "T-SU-CREATE-AUTH",
+        "harness_fn": "pb_create_local_superuser",
+        "expected": "PASS",
+        "blocking": true
+      },
+      {
+        "requirement": "Auth response collectionName == '_superusers'",
+        "test_id": "T-SU-COLL-CHECK",
+        "harness_fn": "pb_create_local_superuser (pbj_tok.py)",
+        "expected": "PASS",
+        "blocking": true
+      },
+      {
+        "requirement": "Auth token has valid format",
+        "test_id": "T-SU-TOKEN-VALID",
+        "harness_fn": "pb_create_local_superuser (pbj_tok.py)",
+        "expected": "PASS",
+        "blocking": true
+      },
+      {
+        "requirement": "Temporary _superusers record deleted and verified absent",
+        "test_id": "T-SU-DELETE",
+        "harness_fn": "pb_delete_local_superuser",
+        "expected": "PASS",
+        "cleanup_failure_on_error": true
+      },
+      {
+        "requirement": "example.invalid domain accepted by PocketBase",
+        "test_id": "T-SELFTEST-EMAIL-DOMAIN",
+        "harness_fn": "pb_verify_email_domain",
+        "expected": "PASS",
+        "blocking": true
+      },
+      {
+        "requirement": "Role injection via anonymous create rejected; no record persists",
+        "test_id": "T-INJECT-CREATE-ANON-ADMIN",
+        "harness_fn": "pb_inject_create_and_verify",
+        "expected": "PASS",
+        "blocking": true
+      },
+      {
+        "requirement": "Superadmin role injection via anonymous create rejected",
+        "test_id": "T-INJECT-CREATE-ANON-SADMIN",
+        "harness_fn": "pb_inject_create_and_verify",
+        "expected": "PASS",
+        "blocking": true
+      },
+      {
+        "requirement": "verified=true injection via anonymous create rejected",
+        "test_id": "T-INJECT-CREATE-VERIFIED",
+        "harness_fn": "pb_inject_create_and_verify",
+        "expected": "PASS",
+        "blocking": true
+      },
+      {
+        "requirement": "phone_verified=true injection via anonymous create rejected",
+        "test_id": "T-INJECT-CREATE-PHONE-VER",
+        "harness_fn": "pb_inject_create_and_verify",
+        "expected": "PASS",
+        "blocking": true
+      },
+      {
+        "requirement": "No unexpected privileged field on anonymous-created user",
+        "test_id": "T-INJECT-CREATE-UNEXPECTED",
+        "harness_fn": "t_inject_create_unexpected",
+        "expected": "PASS",
+        "blocking": true
+      },
+      {
+        "requirement": "Ordinary user cannot PATCH users.phone directly",
+        "test_id": "T-PHONE-ORD-NO-PATCH-PHONE",
+        "harness_fn": "t_phone_ordinary_cannot_patch_phone",
+        "expected": "PASS",
+        "blocking": false
+      },
+      {
+        "requirement": "Ordinary user cannot PATCH users.phone_verified directly",
+        "test_id": "T-PHONE-ORD-NO-PATCH-PV",
+        "harness_fn": "t_phone_ordinary_cannot_patch_phone_verified",
+        "expected": "PASS",
+        "blocking": false
+      },
+      {
+        "requirement": "Mixed-field PATCH containing phone rejected atomically (name not persisted either)",
+        "test_id": "T-PHONE-MIXED-FIELD-REJECT",
+        "harness_fn": "t_phone_mixed_field_rejection",
+        "expected": "PASS",
+        "blocking": false
+      },
+      {
+        "requirement": "NSU can set phone+phone_verified together (emergency recovery)",
+        "test_id": "T-PHONE-NSU-RECOVERY",
+        "harness_fn": "t_phone_nsu_can_set_phone_and_pv_together",
+        "expected": "PASS",
+        "blocking": false
+      },
+      {
+        "requirement": "NSU cannot set phone_verified=true without non-blank phone",
+        "test_id": "T-PHONE-NSU-PV-NO-PHONE",
+        "harness_fn": "t_phone_nsu_cannot_set_pv_without_phone",
+        "expected": "PASS",
+        "blocking": false
+      },
+      {
+        "requirement": "Anonymous OTP request rejected with 401",
+        "test_id": "T-PHONE-OTP-AUTH-ANON",
+        "harness_fn": "t_phone_otp_auth_requirements",
+        "expected": "PASS",
+        "blocking": false
+      },
+      {
+        "requirement": "Admin OTP request rejected with 403",
+        "test_id": "T-PHONE-OTP-AUTH-ADMIN",
+        "harness_fn": "t_phone_otp_auth_requirements",
+        "expected": "PASS",
+        "blocking": false
+      },
+      {
+        "requirement": "Superadmin OTP request rejected with 403",
+        "test_id": "T-PHONE-OTP-AUTH-SADMIN",
+        "harness_fn": "t_phone_otp_auth_requirements",
+        "expected": "PASS",
+        "blocking": false
+      },
+      {
+        "requirement": "User B cannot verify an OTP requested by User A (requesting_user_id binding)",
+        "test_id": "T-PHONE-OTP-CROSS-USER",
+        "harness_fn": "t_phone_otp_cross_user_attack",
+        "expected": "PASS",
+        "blocking": false
+      },
+      {
+        "requirement": "OTP verify atomically sets both phone and phone_verified (TX-3)",
+        "test_id": "T-PHONE-OTP-ATOMIC-LINK",
+        "harness_fn": "t_phone_otp_atomic_link",
+        "expected": "PASS",
+        "blocking": false
+      },
+      {
+        "requirement": "TX-3 rollback leaves OTP active and phone unchanged (db_fail_verify)",
+        "test_id": "T-PHONE-OTP-ROLLBACK",
+        "harness_fn": "t_phone_otp_rollback",
+        "expected": "PASS",
+        "blocking": false
+      },
+      {
+        "requirement": "Full OTP lifecycle: pending_send → sent_active → consumed",
+        "test_id": "T-OTP-FLOW",
+        "harness_fn": "t_otp_flow",
+        "expected": "PASS",
+        "blocking": false
+      },
+      {
+        "requirement": "TX-1 rollback creates no record (pending_create_fail)",
+        "test_id": "T-OTP-PENDING-CREATE-FAIL",
+        "harness_fn": "t_otp_pending_create_fail",
+        "expected": "PASS",
+        "blocking": false
+      },
+      {
+        "requirement": "TX-2 rollback; cleanup succeeds; no sent_active record (db_fail_request)",
+        "test_id": "T-OTP-DB-FAIL-REQUEST",
+        "harness_fn": "t_otp_db_fail_request",
+        "expected": "PASS",
+        "blocking": false
+      },
+      {
+        "requirement": "TX-2 rollback + cleanup fails; 500 returned; state unresolved (db_fail_request_cleanup_fail)",
+        "test_id": "T-OTP-DB-FAIL-CLEANUP-FAIL",
+        "harness_fn": "t_otp_db_fail_request_cleanup_fail",
+        "expected": "PASS",
+        "blocking": false
+      },
+      {
+        "requirement": "Expired OTP TX commits expired state; phone_verified unchanged",
+        "test_id": "T-OTP-EXPIRED",
+        "harness_fn": "t_otp_expired",
+        "expected": "PASS",
+        "blocking": false
+      },
+      {
+        "requirement": "Email change lifecycle observable without production SMTP",
+        "test_id": "T-EMAIL-LIFECYCLE-CHANGE",
+        "harness_fn": "t_email_lifecycle_group",
+        "expected": "UNRESOLVED",
+        "unresolved_reason": "Requires local mail sink fixture. Cannot observe delivery queue without local SMTP relay."
+      },
+      {
+        "requirement": "Rate-limit policy enforced across OTP requests",
+        "test_id": "T-OTP-RATE-LIMIT-POLICY",
+        "harness_fn": "t_concurrency_otp_send_group (deferred)",
+        "expected": "DEFERRED-MANDATORY",
+        "unresolved_reason": "Rate-limit policy not defined. Cannot test undefined policy."
+      },
+      {
+        "requirement": "Idempotency policy for OTP requests",
+        "test_id": "T-OTP-IDEMPOTENCY-POLICY",
+        "harness_fn": "t_concurrency_otp_send_group (deferred)",
+        "expected": "DEFERRED-MANDATORY",
+        "unresolved_reason": "Idempotency policy not defined."
+      },
+      {
+        "requirement": "Alias enumeration: consistent status, content-type, size, timing",
+        "test_ids": ["T-ALIAS-ENUM-1","T-ALIAS-ENUM-2","T-ALIAS-ENUM-3","T-ALIAS-ENUM-4","T-ALIAS-ENUM-CT-UNIFORM","T-ALIAS-ENUM-SIZE-UNIFORM","T-ALIAS-ENUM-TIMING"],
+        "harness_fn": "t_alias_enum_group (pb_capture_full)",
+        "expected": "PASS",
+        "blocking": false
+      },
+      {
+        "requirement": "Anonymous list of users rejected",
+        "test_id": "T-ANON-READ",
+        "harness_fn": "t_anon_read_denied",
+        "expected": "PASS",
+        "blocking": false
+      },
+      {
+        "requirement": "articles.listRule denies anonymous access",
+        "test_id": "T-ART-ANON-POLICY",
+        "harness_fn": "t_art_anon_policy",
+        "expected": "PASS",
+        "blocking": false
+      },
+      {
+        "requirement": "Authenticated user can filter antenatal articles",
+        "test_id": "T-ART-ANTENATAL-VIS",
+        "harness_fn": "t_art_antenatal_vis",
+        "expected": "PASS",
+        "blocking": false
+      },
+      {
+        "requirement": "Admin cannot self-escalate to superadmin",
+        "test_id": "T-ADMIN-ESCALATION",
+        "harness_fn": "t_admin_escalation_self",
+        "expected": "PASS",
+        "blocking": false
+      },
+      {
+        "requirement": "Concurrent OTP verify: exactly 1 TX-3 commits",
+        "test_id": "T-CONCURRENCY-OTP-VERIFY",
+        "harness_fn": "t_concurrency_otp_verify_group",
+        "expected": "PASS",
+        "blocking": false
+      },
+      {
+        "requirement": "Concurrent OTP send: exactly 1 sent_active, 0 pending",
+        "test_id": "T-CONCURRENCY-OTP-SEND",
+        "harness_fn": "t_concurrency_otp_send_group",
+        "expected": "PASS",
+        "blocking": false
+      }
+    ]
+  },
+
+  "antenatal_route_inventory": {
+    "note": "Static inventory of frontend routes requiring antenatal/postnatal access control. CP0 inventories surfaces only; does not implement or test the frontend gatekeeper.",
+    "status": "NEEDS-EXTERNAL — exact route paths require frontend codebase inspection.",
+    "onboarding": {
+      "route": "/onboarding",
+      "gating": "Authenticated; redirects to dashboard if setup complete",
+      "cp0_concern": "Must not be accessible anonymously; must require authentication"
+    },
+    "tracking_dashboard": {
+      "route": "/track (or /dashboard)",
+      "gating": "Authenticated; requires at least one child or antenatal profile",
+      "cp0_concern": "Child-dependent cards must not render without active child records"
+    },
+    "child_selector": {
+      "route": "NEEDS-EXTERNAL — e.g. /children",
+      "gating": "Authenticated; lists children owned by user",
+      "cp0_concern": "Cannot display or access other users' children"
+    },
+    "child_creation": {
+      "route": "NEEDS-EXTERNAL",
+      "gating": "Authenticated; user = @request.auth.id enforced in createRule",
+      "cp0_concern": "Ownership spoofing prevented (T-INJECT-CREATE-ANON-ADMIN covers users; children enforced separately)"
+    },
+    "growth_tracking": {
+      "route": "NEEDS-EXTERNAL — e.g. /track/growth/:childId",
+      "gating": "Authenticated; child must belong to current user",
+      "cp0_concern": "Access denied if child does not belong to user (T-FILE-AUTH-1 covers growth_logs)"
+    },
+    "nutrition_tracking": { "route": "NEEDS-EXTERNAL", "gating": "Same as growth", "cp0_concern": "nutrition_logs collection access" },
+    "activity_tracking":  { "route": "NEEDS-EXTERNAL", "gating": "Same as growth", "cp0_concern": "activity_logs collection access" },
+    "wellbeing_tracking": { "route": "NEEDS-EXTERNAL", "gating": "Same as growth", "cp0_concern": "wellbeing_logs collection access" },
+    "immunisations": {
+      "route": "NEEDS-EXTERNAL",
+      "gating": "Authenticated; child-scoped",
+      "cp0_concern": "immunisations collection access; must not show other children's records"
+    },
+    "newborn_postnatal_courses": {
+      "route": "NEEDS-EXTERNAL",
+      "gating": "Authenticated; enrollment-gated",
+      "cp0_concern": "courses, enrollments, lesson_progress — postnatal only accessible post-delivery"
+    },
+    "articles_and_bookmarks": {
+      "route": "NEEDS-EXTERNAL",
+      "gating": "Authenticated; antenatal articles filtered by is_pregnancy=true",
+      "cp0_concern": "T-ART-ANON-POLICY (anonymous denied), T-ART-ANTENATAL-VIS (filter works)"
+    },
+    "notification_history": {
+      "route": "NEEDS-EXTERNAL",
+      "gating": "Authenticated; user-scoped notifications",
+      "cp0_concern": "notifications, notification_preferences — cannot view another user's notifications"
+    },
+    "push_deep_links": {
+      "route": "NEEDS-EXTERNAL",
+      "gating": "Deep links must re-authenticate before rendering child-dependent content",
+      "cp0_concern": "push_subscriptions; deep link cannot bypass child ownership check"
+    },
+    "service_worker_cached_routes": {
+      "routes": "NEEDS-EXTERNAL",
+      "gating": "Cached routes must not serve stale auth state",
+      "cp0_concern": "Inventory of cached routes requires SW inspection; NEEDS-EXTERNAL"
+    }
+  },
+
+  "single_outcome_design": {
+    "mechanism": "_t_record_outcome() + _t_fatal_internal()",
+    "non_recursive": true,
+    "selftest": "PASS/PASS, PASS/FAIL, FAIL/PASS all detected via isolated _st_rec()",
+    "static_dedup": "pbj_dupeid.py scans harness source for duplicate literal test IDs"
+  },
+
+  "rate_limit_note": "D23-12/D24-12: Persistent rate-limit and idempotency policy remain DEFERRED-MANDATORY. Lifecycle capability is testable. Production deployment readiness is not authorized."
+}

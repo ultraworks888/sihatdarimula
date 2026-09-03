@@ -1,0 +1,418 @@
+{
+  "manifest_version": "1",
+  "round": "14",
+  "status": "DRAFTED",
+  "description": "Test manifest for Release 1B Checkpoint 0. Lists all test identifiers, their classification, implementation status, and disposition. Seven corrections applied vs Round 13.",
+  "corrections_applied_vs_r13": [
+    "1. T-FILE-AUTH-5 added to mandatory_deferred_items (was missing)",
+    "2. T-FILE-AUTH-7 added to mandatory_deferred_items (was missing)",
+    "3. mandatory_deferred_count recalculated: 9 -> 11 (added T-FILE-AUTH-5, T-FILE-AUTH-7)",
+    "4. T-RULE-APPLY and T-RULE-RESTORE reclassified: no longer harness-internal; now standalone mandatory tests (T-RULE-APPLY-RESTORE)",
+    "5. T-EMAIL-LIFECYCLE circular explanation removed; T-EMAIL-LIFECYCLE-ISOLATED added as mandatory Mailhog test (defect-20)",
+    "6. E4/E6/E8 represented as production exclusions with exact historical meanings (defect-21), not as skips",
+    "7. T-NSU-HOOK-BEHAVIOR classified as mandatory-deferred with explanation (defect-17)"
+  ],
+  "counts": {
+    "mandatory_total": 47,
+    "mandatory_deferred_count": 11,
+    "authorized_exclusion_count": 3,
+    "note": "mandatory_deferred_count increased from 9 to 11 due to corrections 1 and 2 above"
+  },
+  "mandatory_items": [
+    {
+      "id": "T-SU-CREATE-AUTH",
+      "description": "Native superuser created and authenticated",
+      "stage": "infrastructure",
+      "blocking": true
+    },
+    {
+      "id": "T-SU-DELETE",
+      "description": "Native superuser deleted during cleanup",
+      "stage": "cleanup"
+    },
+    {
+      "id": "T-PREFLIGHT-PORTS",
+      "description": "Ports 8090, 8025, 1025 free before start",
+      "stage": "infrastructure",
+      "blocking": true
+    },
+    {
+      "id": "T-SCHEMA-MIGRATIONS-COPY",
+      "description": "Migration files copied to isolated dir",
+      "stage": "infrastructure"
+    },
+    {
+      "id": "T-SCHEMA-COL-users",
+      "description": "users collection exists",
+      "stage": "schema"
+    },
+    {
+      "id": "T-SCHEMA-COL-children",
+      "description": "children collection exists",
+      "stage": "schema"
+    },
+    {
+      "id": "T-SCHEMA-COL-growth_records",
+      "description": "growth_records collection exists",
+      "stage": "schema"
+    },
+    {
+      "id": "T-SCHEMA-COL-activities",
+      "description": "activities collection exists",
+      "stage": "schema"
+    },
+    {
+      "id": "T-SCHEMA-COL-immunizations",
+      "description": "immunizations collection exists",
+      "stage": "schema"
+    },
+    {
+      "id": "T-SCHEMA-COL-progress_notes",
+      "description": "progress_notes collection exists",
+      "stage": "schema"
+    },
+    {
+      "id": "T-SCHEMA-COL-articles",
+      "description": "articles collection exists",
+      "stage": "schema"
+    },
+    {
+      "id": "T-SCHEMA-COL-bookmarks",
+      "description": "bookmarks collection exists",
+      "stage": "schema"
+    },
+    {
+      "id": "T-SCHEMA-COL-notifications",
+      "description": "notifications collection exists",
+      "stage": "schema"
+    },
+    {
+      "id": "T-SCHEMA-COL-newborn_enrollments",
+      "description": "newborn_enrollments collection exists",
+      "stage": "schema"
+    },
+    {
+      "id": "T-SCHEMA-COL-courses",
+      "description": "courses collection exists",
+      "stage": "schema"
+    },
+    {
+      "id": "T-HOOKDIR-VERIFY",
+      "description": "Hooks directory exists with 700 permissions",
+      "stage": "hooks"
+    },
+    {
+      "id": "T-CRUD-CH-LIST",
+      "description": "Authenticated user can list own children",
+      "stage": "crud"
+    },
+    {
+      "id": "T-CRUD-CH-VIEW",
+      "description": "Authenticated user can view own child by ID",
+      "stage": "crud"
+    },
+    {
+      "id": "T-CRUD-CH-VIEW-CROSS",
+      "description": "User cannot view another user's child (404)",
+      "stage": "crud"
+    },
+    {
+      "id": "T-CRUD-CH-CREATE",
+      "description": "Authenticated user can create child with own parent ID",
+      "stage": "crud"
+    },
+    {
+      "id": "T-CRUD-CH-CREATE-CROSS",
+      "description": "User cannot create child with another user's parent ID (400)",
+      "stage": "crud"
+    },
+    {
+      "id": "T-CRUD-GR-CREATE",
+      "description": "Authenticated user can create growth record for own child",
+      "stage": "crud"
+    },
+    {
+      "id": "T-FIELD-ROLE-REJECT",
+      "description": "Ordinary user cannot set role=admin on own record (400)",
+      "stage": "field-protection"
+    },
+    {
+      "id": "T-FIELD-PHONE-REJECT",
+      "description": "Ordinary user cannot set phone_verified=true on own record (400)",
+      "stage": "field-protection"
+    },
+    {
+      "id": "T-FIELD-ALIAS-REJECT",
+      "description": "Ordinary user cannot set is_alias_account=true on own record (400)",
+      "stage": "field-protection"
+    },
+    {
+      "id": "T-FILE-AUTH-1",
+      "description": "Anonymous cannot list progress_notes (401/403)",
+      "stage": "file-auth"
+    },
+    {
+      "id": "T-FILE-AUTH-2",
+      "description": "Authenticated user can view own progress notes (200)",
+      "stage": "file-auth"
+    },
+    {
+      "id": "T-FILE-AUTH-3",
+      "description": "Authenticated user cannot view another user's progress notes (empty list)",
+      "stage": "file-auth"
+    },
+    {
+      "id": "T-FILE-AUTH-4",
+      "description": "Admin can list all progress notes (200)",
+      "stage": "file-auth"
+    },
+    {
+      "id": "T-FILE-AUTH-6",
+      "description": "Protected file URL without token returns 404/401",
+      "stage": "file-auth"
+    },
+    {
+      "id": "T-ALIAS-ENUM-1",
+      "description": "Auth with alias account email + wrong pw returns 400 (defect-9: same as cases 2-4)",
+      "stage": "alias-enum"
+    },
+    {
+      "id": "T-ALIAS-ENUM-2",
+      "description": "Auth with real non-alias email + wrong pw returns 400",
+      "stage": "alias-enum"
+    },
+    {
+      "id": "T-ALIAS-ENUM-3",
+      "description": "Auth with nonexistent email + wrong pw returns 400",
+      "stage": "alias-enum"
+    },
+    {
+      "id": "T-ALIAS-ENUM-4",
+      "description": "Auth with malformed email returns 400",
+      "stage": "alias-enum"
+    },
+    {
+      "id": "T-ALIAS-CASE5-TIMING",
+      "description": "Timing analysis between alias and non-alias auth paths (defect-10)",
+      "stage": "alias-enum"
+    },
+    {
+      "id": "T-ACTOR-ROLE-RULE",
+      "description": "Defect-27: user.role must match actor role on write; escalation rejected (400)",
+      "stage": "auth"
+    },
+    {
+      "id": "T-ANON-READ",
+      "description": "Anonymous cannot read users collection (401/403)",
+      "stage": "auth"
+    },
+    {
+      "id": "T-AUTH-NO-OTHERS-READ",
+      "description": "Authenticated user cannot view another user's record (404)",
+      "stage": "auth"
+    },
+    {
+      "id": "T-ADMIN-ESCALATION",
+      "description": "Admin cannot promote self to superadmin (400)",
+      "stage": "admin"
+    },
+    {
+      "id": "T-ADMIN-NO-PROMOTE",
+      "description": "Admin cannot promote another user to superadmin (400/403)",
+      "stage": "admin"
+    },
+    {
+      "id": "T-SADMIN-LIST-USERS",
+      "description": "Superadmin can list all users (200)",
+      "stage": "admin"
+    },
+    {
+      "id": "T-NSU-BYPASS",
+      "description": "Native superuser bypasses collection rules (200)",
+      "stage": "admin"
+    },
+    {
+      "id": "T-USER-NAME-UPDATE",
+      "description": "Ordinary user can update own name (200)",
+      "stage": "user-ops"
+    },
+    {
+      "id": "T-USER-LANG-UPDATE",
+      "description": "Ordinary user can update own language (200)",
+      "stage": "user-ops"
+    },
+    {
+      "id": "T-ART-ANTENATAL-VIS",
+      "description": "Defect-18: antenatal articles visible to authenticated users (200)",
+      "stage": "content"
+    },
+    {
+      "id": "T-ART-ANON-DENIED",
+      "description": "Anonymous cannot access articles (401/403)",
+      "stage": "content"
+    },
+    {
+      "id": "T-ANON-INJECT",
+      "description": "Defect-26: server-side allowlist rejects injected privileged fields",
+      "stage": "injection"
+    },
+    {
+      "id": "T-API-DECLARATIONS",
+      "description": "Defect-18/19: API route semantics verified (health=200, collections anon=401)",
+      "stage": "api"
+    },
+    {
+      "id": "T-STATIC-ROUTE-INVENTORY",
+      "description": "Static route inventory: health and auth-methods routes respond",
+      "stage": "api"
+    },
+    {
+      "id": "T-RULE-APPLY-RESTORE",
+      "description": "Defect-13/14: apply rule change, verify effect, restore, verify restoration",
+      "stage": "rules"
+    },
+    {
+      "id": "T-CONCURRENCY-AUTH",
+      "description": "Defect-23: concurrent wrong-password attempts all return 400",
+      "stage": "concurrency"
+    }
+  ],
+  "mandatory_deferred_items": [
+    {
+      "id": "T-FILE-AUTH-5",
+      "description": "User can upload file to own progress note",
+      "reason": "Requires operator-provided binary test asset (NEEDS-EXTERNAL)",
+      "correction": "Added to manifest in R14 (was missing in R13 — correction #1)"
+    },
+    {
+      "id": "T-FILE-AUTH-7",
+      "description": "User can delete own file attachment",
+      "reason": "Depends on T-FILE-AUTH-5 (NEEDS-EXTERNAL upload asset)",
+      "correction": "Added to manifest in R14 (was missing in R13 — correction #2)"
+    },
+    {
+      "id": "T-NSU-HOOK-BEHAVIOR",
+      "description": "Defect-17: native superuser behavior when intercepted by hook",
+      "reason": "Hook source required to define NSU intercept semantics (NEEDS-EXTERNAL)",
+      "correction": "Reclassified from implicit to mandatory-deferred in R14 (correction #7)"
+    },
+    {
+      "id": "T-EMAIL-LIFECYCLE",
+      "description": "Defect-20: complete email lifecycle test via Mailhog",
+      "reason": "Requires Mailhog (docker) to be available; deferred if docker not present",
+      "correction": "R13 had circular explanation; R14 implements t_email_lifecycle_isolated() as mandatory Mailhog stage (correction #5)"
+    },
+    {
+      "id": "T-EMAIL-VERIFY-REQ",
+      "description": "Email verification required for protected resource access",
+      "reason": "Requires Mailhog for verification token delivery"
+    },
+    {
+      "id": "T-EMAIL-CHANGE-FLOW",
+      "description": "Email change flow including token delivery",
+      "reason": "Requires Mailhog for email change token delivery"
+    },
+    {
+      "id": "T-OTP-FLOW",
+      "description": "OTP request and auth flow",
+      "reason": "Requires Mailhog for OTP delivery; OTP must be enabled on users collection"
+    },
+    {
+      "id": "T-AVATAR-LIFECYCLE",
+      "description": "Avatar upload and deletion lifecycle",
+      "reason": "Requires operator-provided binary image asset (NEEDS-EXTERNAL)"
+    },
+    {
+      "id": "T-PROXY-IP-INVESTIGATE",
+      "description": "Defect-22: proxy IP pass-through investigation",
+      "reason": "Requires external network fixture (NEEDS-EXTERNAL)"
+    },
+    {
+      "id": "T-HOOK-SMOKE-*",
+      "description": "Hook smoke matrix for each hook",
+      "reason": "HOOK_PROBE_ROUTES must be configured (NEEDS-EXTERNAL); hook source files not available"
+    },
+    {
+      "id": "T-PKG-ARCHIVE-HASH",
+      "description": "PocketBase archive hash verification",
+      "reason": "PB_EXPECTED_SHA256 values not set (NEEDS-EXTERNAL); deferred pending operator configuration"
+    }
+  ],
+  "authorized_exclusions": [
+    {
+      "id": "E4-PROXY-IP",
+      "description": "Proxy IP pass-through",
+      "reason": "Known production configuration; not testable in isolated harness without network fixture. See T-PROXY-IP-INVESTIGATE (mandatory-deferred).",
+      "correction": "R14 represents this as authorized exclusion with exact historical meaning (correction #6, defect-21)"
+    },
+    {
+      "id": "E6-PUSH-BROADCAST",
+      "description": "Push notification broadcast",
+      "reason": "Requires external push notification service credentials. Tested only for hook presence and route existence in smoke matrix.",
+      "correction": "R14 represents this as authorized exclusion with exact historical meaning (correction #6, defect-21)"
+    },
+    {
+      "id": "E8-WHATSAPP",
+      "description": "WhatsApp integration",
+      "reason": "Requires production WhatsApp API key. Tested only for hook presence and route existence in smoke matrix.",
+      "correction": "R14 represents this as authorized exclusion with exact historical meaning (correction #6, defect-21)"
+    }
+  ],
+  "harness_selftest_items": [
+    {
+      "id": "SELFTEST-COUNTER",
+      "description": "t_pass increments T_PASS"
+    },
+    {
+      "id": "SELFTEST-TMPFILE-PERMS",
+      "description": "pb_secure_tmpfile creates file with 600 permissions"
+    },
+    {
+      "id": "SELFTEST-URL-VALID",
+      "description": "Valid API URL accepted by pb_validate_url"
+    },
+    {
+      "id": "SELFTEST-URL-EXTERNAL-REJECT",
+      "description": "External URL rejected by pb_validate_url"
+    },
+    {
+      "id": "SELFTEST-URL-PATH-REJECT",
+      "description": "Non-/api/ path rejected by pb_validate_url"
+    },
+    {
+      "id": "SELFTEST-PBJ-BLOCKED-KEY",
+      "description": "pbj.py rejects blocked key 'id'"
+    },
+    {
+      "id": "SELFTEST-PBJ-DUPLICATE-KEY",
+      "description": "pbj.py rejects duplicate key"
+    },
+    {
+      "id": "SELFTEST-PBJ-BOOL-NUM",
+      "description": "pbj.py accepts valid bool/number types"
+    },
+    {
+      "id": "SELFTEST-SYMLINK-DETECT",
+      "description": "pbj_stat.py detects symlinks"
+    },
+    {
+      "id": "SELFTEST-EXTRACT-BLOCKED",
+      "description": "pbj_extract.py rejects non-allowlist fields"
+    },
+    {
+      "id": "SELFTEST-EXTRACT-ID",
+      "description": "pbj_extract.py extracts 'id' field correctly"
+    },
+    {
+      "id": "SELFTEST-HALT-PROPAGATION",
+      "description": "HALT_DEPENDENTS=1 causes t_skip"
+    }
+  ],
+  "defect_1_note": "T-SELFTEST-DOUBLE-INVOCATION: not reproduced in R13 delivered artifact. Single-invocation self-test retained. The _RELEASE1B_SELFTEST_RUNNING guard is implemented to detect re-entry if it were to occur.",
+  "defect_number_mapping": {
+    "27": "actor-role rule (T-ACTOR-ROLE-RULE)",
+    "28": "package integrity / HOOK_PROBE_ROUTES key-set match",
+    "29": "path disclosure sanitization",
+    "30": "non-atomic export"
+  }
+}
