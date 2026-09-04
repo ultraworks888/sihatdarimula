@@ -4,7 +4,6 @@
   "version": "0.0.0",
   "type": "module",
   "scripts": {
-    "postprepare": "npm cache clean --force",
     "dev": "vite",
     "build": "vite build",
     "lint": "eslint .",
@@ -48,11 +47,9 @@
     "eslint-plugin-react-refresh": "^0.4.19",
     "globals": "^15.15.0",
     "postcss": "^8.5.3",
-    "sg-preview-plugin": "file:/usr/lib/node_modules_22/sg-preview-plugin",
     "tailwindcss": "^4.0.14",
     "typescript": "~5.7.2",
     "typescript-eslint": "^8.24.1",
-    "vite": "^8.0.10",
-    "vite-error-reporter": "file:/usr/lib/node_modules_22/vite-error-reporter"
+    "vite": "^8.0.10"
   }
 }
