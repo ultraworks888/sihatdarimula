@@ -61,14 +61,13 @@ This enables the "Enable Push Notifications" toggle in the app for parents.
 
 ---
 
-## Step 3 — Set up the push server environment
+## Step 3 — Configure the push server environment
 
-```bash
-cd push-server
-cp .env.example .env
-```
+The push server reads its runtime configuration from environment variables. Configure these variables in the hosting environment before starting the process. For local testing, inject them through your shell or process manager for the current session.
 
-Open `.env` and fill in:
+This repository intentionally does not include an `.env.example` or credential-bearing `.env` file. Do not commit secret values.
+
+Required variables:
 
 | Variable | Value |
 |---|---|
@@ -85,6 +84,7 @@ Open `.env` and fill in:
 
 ```bash
 cd push-server
+# Inject the required runtime environment variables before starting.
 npm install
 npm start
 ```
@@ -114,7 +114,7 @@ The push server must run **continuously** (it holds an open SSE connection to Po
 1. Create a free account at [railway.app](https://railway.app)
 2. Click **New Project → Deploy from GitHub repo**
 3. Point it to a GitHub repo containing just the `push-server/` folder contents (or your full project — Railway detects `package.json` in subdirectories)
-4. In Railway: **Variables** → add all six env vars from your `.env`
+4. In Railway: **Variables** → add all six runtime variables listed in Step 3
 5. Railway auto-deploys on every git push and keeps the process alive 24/7
 
 ### Option B — Render (free tier available)
@@ -134,8 +134,9 @@ The push server must run **continuously** (it holds an open SSE connection to Po
 git clone <your-repo>
 cd push-server
 npm install
-cp .env.example .env
-nano .env   # fill in values
+
+# Configure the required runtime environment variables through your shell,
+# process manager, or hosting environment. Do not store them in the repository.
 
 # Run with PM2 (keeps it alive after reboots)
 npm install -g pm2
