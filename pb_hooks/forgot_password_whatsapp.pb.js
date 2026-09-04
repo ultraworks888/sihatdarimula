@@ -211,6 +211,70 @@ function _pwOtpDeleteRetainedTerminalRecords(app, cutoff) {
 // Terminal records are retained for seven days and processed in bounded
 // batches. Active, unexpired OTPs are never selected for deletion.
 cronAdd("password_reset_otp_cleanup", "37 * * * *", function() {
+  var _PW_OTP_RETENTION_MS = 7 * 24 * 60 * 60 * 1000;
+  var _PW_OTP_CLEANUP_BATCH_SIZE = 500;
+  var _PW_OTP_STATUS_PENDING = "pending";
+  var _PW_OTP_STATUS_ACTIVE = "active";
+  var _PW_OTP_STATUS_FAILED = "failed";
+  var _PW_OTP_STATUS_INVALIDATED = "invalidated";
+  var _PW_OTP_STATUS_EXPIRED = "expired";
+  var _PW_OTP_STATUS_LOCKED = "locked";
+  var _PW_OTP_STATUS_USED = "used";
+
+  function _pwOtpDate(value) {
+    return new Date(value).toISOString().replace("T", " ");
+  }
+
+  function _pwOtpRecords(app, filter, sort, limit, params) {
+    return app.findRecordsByFilter(
+      "password_reset_otps",
+      filter,
+      sort || "",
+      limit || 0,
+      0,
+      params || {}
+    );
+  }
+
+  function _pwOtpExpireStaleRecords(app, nowString) {
+    var records = _pwOtpRecords(
+      app,
+      "(status = {:pending} || status = {:active}) && is_used = false && expires_at <= {:now}",
+      "created",
+      _PW_OTP_CLEANUP_BATCH_SIZE,
+      {
+        pending: _PW_OTP_STATUS_PENDING,
+        active: _PW_OTP_STATUS_ACTIVE,
+        now: nowString
+      }
+    );
+    for (var i = 0; i < records.length; i++) {
+      records[i].set("status", _PW_OTP_STATUS_EXPIRED);
+      records[i].set("is_used", true);
+      app.save(records[i]);
+    }
+  }
+
+  function _pwOtpDeleteRetainedTerminalRecords(app, cutoff) {
+    var records = _pwOtpRecords(
+      app,
+      "(status = {:failed} || status = {:invalidated} || status = {:expired} || status = {:locked} || status = {:used}) && created < {:cutoff}",
+      "created",
+      _PW_OTP_CLEANUP_BATCH_SIZE,
+      {
+        failed: _PW_OTP_STATUS_FAILED,
+        invalidated: _PW_OTP_STATUS_INVALIDATED,
+        expired: _PW_OTP_STATUS_EXPIRED,
+        locked: _PW_OTP_STATUS_LOCKED,
+        used: _PW_OTP_STATUS_USED,
+        cutoff: cutoff
+      }
+    );
+    for (var i = 0; i < records.length; i++) {
+      app.delete(records[i]);
+    }
+  }
+
   var now = Date.now();
 
   try {
@@ -227,6 +291,111 @@ cronAdd("password_reset_otp_cleanup", "37 * * * *", function() {
 });
 
 routerAdd("POST", "/api/auth/request-password-reset-whatsapp", function(e) {
+  var _PW_OTP_LENGTH = 6;
+  var _PW_OTP_TTL_MS = 10 * 60 * 1000;
+  var _PW_OTP_RESEND_COOLDOWN_MS = 60 * 1000;
+  var _PW_OTP_SENDS_PER_HOUR = 5;
+  var _PW_OTP_SENDS_PER_DAY = 10;
+  var _PW_OTP_STATUS_PENDING = "pending";
+  var _PW_OTP_STATUS_ACTIVE = "active";
+  var _PW_OTP_STATUS_FAILED = "failed";
+  var _PW_OTP_STATUS_INVALIDATED = "invalidated";
+
+  function _pwOtpDate(value) {
+    return new Date(value).toISOString().replace("T", " ");
+  }
+
+  function _pwOtpNormalizeMalaysianPhone(value) {
+    var phone = String(value || "").trim().replace(/[\s().-]/g, "");
+    if (/^01\d{8,9}$/.test(phone)) {
+      phone = "+6" + phone;
+    } else if (/^601\d{8,9}$/.test(phone)) {
+      phone = "+" + phone;
+    }
+    if (!/^\+601\d{8,9}$/.test(phone)) return "";
+    return phone;
+  }
+
+  function _pwOtpGenericInitiationResponse(event) {
+    return event.json(200, {
+      ok: true,
+      message: "If this number is registered, a reset code has been sent to your WhatsApp."
+    });
+  }
+
+  function _pwOtpSetting(key) {
+    try {
+      return $app.findFirstRecordByFilter(
+        "lms_settings",
+        "key = {:key}",
+        { key: key }
+      ).getString("value");
+    } catch (_) {
+      return "";
+    }
+  }
+
+  function _pwOtpFindEligibleUser(app, phone) {
+    try {
+      return app.findFirstRecordByFilter(
+        "users",
+        "phone = {:phone} && phone_verified = true",
+        { phone: phone }
+      );
+    } catch (_) {
+      return null;
+    }
+  }
+
+  function _pwOtpHash(code, salt) {
+    return $security.sha256(salt + ":" + code);
+  }
+
+  function _pwOtpRecords(app, filter, sort, limit, params) {
+    return app.findRecordsByFilter(
+      "password_reset_otps",
+      filter,
+      sort || "",
+      limit || 0,
+      0,
+      params || {}
+    );
+  }
+
+  function _pwOtpAtLimit(app, filter, params, limit) {
+    return _pwOtpRecords(app, filter, "-created", limit, params).length >= limit;
+  }
+
+  function _pwOtpInvalidateOtherOpenRecords(app, userId, phone, exceptId) {
+    var records = _pwOtpRecords(
+      app,
+      "(user = {:user} || phone = {:phone}) && id != {:id} && is_used = false",
+      "",
+      100,
+      { user: userId, phone: phone, id: exceptId }
+    );
+    for (var i = 0; i < records.length; i++) {
+      records[i].set("status", _PW_OTP_STATUS_INVALIDATED);
+      records[i].set("is_used", true);
+      app.save(records[i]);
+    }
+  }
+
+  function _pwOtpMarkDeliveryFailed(recordId) {
+    try {
+      $app.runInTransaction(function(txApp) {
+        var record = txApp.findRecordById("password_reset_otps", recordId);
+        if (record.getString("status") === _PW_OTP_STATUS_PENDING) {
+          record.set("status", _PW_OTP_STATUS_FAILED);
+          record.set("is_used", true);
+          txApp.save(record);
+        }
+      });
+    } catch (_) {
+      $app.logger().error("Password reset OTP delivery cleanup failed");
+    }
+  }
+
   var body = e.requestInfo().body;
   var phone = _pwOtpNormalizeMalaysianPhone(body.phone);
 
@@ -372,6 +541,91 @@ routerAdd("POST", "/api/auth/request-password-reset-whatsapp", function(e) {
 });
 
 routerAdd("POST", "/api/auth/confirm-password-reset-whatsapp", function(e) {
+  var _PW_OTP_MAX_FAILURES_PER_CODE = 5;
+  var _PW_OTP_MAX_FAILURES_PER_HOUR = 10;
+  var _PW_OTP_STATUS_ACTIVE = "active";
+  var _PW_OTP_STATUS_INVALIDATED = "invalidated";
+  var _PW_OTP_STATUS_EXPIRED = "expired";
+  var _PW_OTP_STATUS_LOCKED = "locked";
+  var _PW_OTP_STATUS_USED = "used";
+
+  function _pwOtpDate(value) {
+    return new Date(value).toISOString().replace("T", " ");
+  }
+
+  function _pwOtpNormalizeMalaysianPhone(value) {
+    var phone = String(value || "").trim().replace(/[\s().-]/g, "");
+    if (/^01\d{8,9}$/.test(phone)) {
+      phone = "+6" + phone;
+    } else if (/^601\d{8,9}$/.test(phone)) {
+      phone = "+" + phone;
+    }
+    if (!/^\+601\d{8,9}$/.test(phone)) return "";
+    return phone;
+  }
+
+  function _pwOtpGenericFailureResponse(event) {
+    return event.json(400, {
+      error: "invalid_otp",
+      message: "Invalid or expired code. Please try again."
+    });
+  }
+
+  function _pwOtpHash(code, salt) {
+    return $security.sha256(salt + ":" + code);
+  }
+
+  function _pwOtpRecords(app, filter, sort, limit, params) {
+    return app.findRecordsByFilter(
+      "password_reset_otps",
+      filter,
+      sort || "",
+      limit || 0,
+      0,
+      params || {}
+    );
+  }
+
+  function _pwOtpFailureCount(app, phone, cutoff) {
+    var records = _pwOtpRecords(
+      app,
+      "phone = {:phone} && created >= {:cutoff}",
+      "-created",
+      100,
+      { phone: phone, cutoff: cutoff }
+    );
+    var count = 0;
+    for (var i = 0; i < records.length; i++) {
+      count += records[i].getInt("failed_attempts");
+    }
+    return count;
+  }
+
+  function _pwOtpFailureLimitReached(codeFailures, phoneFailures) {
+    return codeFailures >= _PW_OTP_MAX_FAILURES_PER_CODE ||
+      phoneFailures >= _PW_OTP_MAX_FAILURES_PER_HOUR;
+  }
+
+  function _pwOtpInvalidateOtherOpenRecords(app, userId, phone, exceptId) {
+    var records = _pwOtpRecords(
+      app,
+      "(user = {:user} || phone = {:phone}) && id != {:id} && is_used = false",
+      "",
+      100,
+      { user: userId, phone: phone, id: exceptId }
+    );
+    for (var i = 0; i < records.length; i++) {
+      records[i].set("status", _PW_OTP_STATUS_INVALIDATED);
+      records[i].set("is_used", true);
+      app.save(records[i]);
+    }
+  }
+
+  function _pwOtpIsExpired(now, expiresAt) {
+    var expiry = new Date(String(expiresAt || "").replace(" ", "T")).getTime();
+    return !isFinite(expiry) || now >= expiry;
+  }
+
   var body = e.requestInfo().body;
   var phone = _pwOtpNormalizeMalaysianPhone(body.phone);
   var code = String(body.code || "").trim();

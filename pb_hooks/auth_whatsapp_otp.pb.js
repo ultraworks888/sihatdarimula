@@ -225,6 +225,72 @@ function _waOtpDeleteRetainedTerminalRecords(app, cutoff) {
 // Hourly, first expire stale pending/active records, then retain terminal audit
 // metadata for seven days. Valid active OTPs are never deleted by this job.
 cronAdd("phone_verification_otp_cleanup", "23 * * * *", function() {
+  var _WA_OTP_RETENTION_MS = 7 * 24 * 60 * 60 * 1000;
+  var _WA_OTP_CLEANUP_BATCH_SIZE = 500;
+  var _WA_OTP_STATUS_PENDING = "pending";
+  var _WA_OTP_STATUS_ACTIVE = "active";
+  var _WA_OTP_STATUS_FAILED = "failed";
+  var _WA_OTP_STATUS_INVALIDATED = "invalidated";
+  var _WA_OTP_STATUS_EXPIRED = "expired";
+  var _WA_OTP_STATUS_LOCKED = "locked";
+  var _WA_OTP_STATUS_USED = "used";
+
+  function _waOtpDate(value) {
+    return new Date(value).toISOString().replace("T", " ");
+  }
+
+  function _waOtpRecords(app, filter, sort, limit, params) {
+    return app.findRecordsByFilter(
+      "phone_verification_otps",
+      filter,
+      sort || "",
+      limit || 0,
+      0,
+      params || {}
+    );
+  }
+
+  function _waOtpExpireStaleRecords(app, nowString) {
+    var records = _waOtpRecords(
+      app,
+      "(status = {:pending} || status = {:active}) && is_used = false && expires_at <= {:now}",
+      "created",
+      _WA_OTP_CLEANUP_BATCH_SIZE,
+      {
+        pending: _WA_OTP_STATUS_PENDING,
+        active: _WA_OTP_STATUS_ACTIVE,
+        now: nowString
+      }
+    );
+
+    for (var i = 0; i < records.length; i++) {
+      records[i].set("status", _WA_OTP_STATUS_EXPIRED);
+      records[i].set("is_used", true);
+      app.save(records[i]);
+    }
+  }
+
+  function _waOtpDeleteRetainedTerminalRecords(app, cutoff) {
+    var records = _waOtpRecords(
+      app,
+      "(status = {:failed} || status = {:invalidated} || status = {:expired} || status = {:locked} || status = {:used}) && created < {:cutoff}",
+      "created",
+      _WA_OTP_CLEANUP_BATCH_SIZE,
+      {
+        failed: _WA_OTP_STATUS_FAILED,
+        invalidated: _WA_OTP_STATUS_INVALIDATED,
+        expired: _WA_OTP_STATUS_EXPIRED,
+        locked: _WA_OTP_STATUS_LOCKED,
+        used: _WA_OTP_STATUS_USED,
+        cutoff: cutoff
+      }
+    );
+
+    for (var i = 0; i < records.length; i++) {
+      app.delete(records[i]);
+    }
+  }
+
   var now = Date.now();
 
   try {
@@ -241,6 +307,112 @@ cronAdd("phone_verification_otp_cleanup", "23 * * * *", function() {
 });
 
 routerAdd("POST", "/api/auth/request-whatsapp-otp", function(e) {
+  var _WA_OTP_LENGTH = 6;
+  var _WA_OTP_TTL_MS = 10 * 60 * 1000;
+  var _WA_OTP_RESEND_COOLDOWN_MS = 60 * 1000;
+  var _WA_OTP_SENDS_PER_HOUR = 5;
+  var _WA_OTP_SENDS_PER_DAY = 10;
+  var _WA_OTP_STATUS_PENDING = "pending";
+  var _WA_OTP_STATUS_ACTIVE = "active";
+  var _WA_OTP_STATUS_FAILED = "failed";
+  var _WA_OTP_STATUS_INVALIDATED = "invalidated";
+
+  function _waOtpDate(value) {
+    return new Date(value).toISOString().replace("T", " ");
+  }
+
+  function _waOtpNormalizeMalaysianPhone(value) {
+    var phone = String(value || "").trim().replace(/[\s().-]/g, "");
+    if (/^01\d{8,9}$/.test(phone)) {
+      phone = "+6" + phone;
+    } else if (/^601\d{8,9}$/.test(phone)) {
+      phone = "+" + phone;
+    }
+    if (!/^\+601\d{8,9}$/.test(phone)) return "";
+    return phone;
+  }
+
+  function _waOtpAuthenticatedUser(event) {
+    if (!event.auth) return null;
+    try {
+      if (event.auth.collection().name !== "users") return null;
+      return $app.findRecordById("users", event.auth.id);
+    } catch (_) {
+      return null;
+    }
+  }
+
+  function _waOtpSetting(key) {
+    try {
+      return $app.findFirstRecordByFilter(
+        "lms_settings",
+        "key = {:key}",
+        { key: key }
+      ).getString("value");
+    } catch (_) {
+      return "";
+    }
+  }
+
+  function _waOtpHash(code, salt) {
+    return $security.sha256(salt + ":" + code);
+  }
+
+  function _waOtpRecords(app, filter, sort, limit, params) {
+    return app.findRecordsByFilter(
+      "phone_verification_otps",
+      filter,
+      sort || "",
+      limit || 0,
+      0,
+      params || {}
+    );
+  }
+
+  function _waOtpAtLimit(app, filter, params, limit) {
+    return _waOtpRecords(app, filter, "-created", limit, params).length >= limit;
+  }
+
+  function _waOtpInvalidateOpenRecords(app, userId, phone) {
+    var records = _waOtpRecords(
+      app,
+      "(user = {:user} || phone = {:phone}) && is_used = false",
+      "",
+      100,
+      { user: userId, phone: phone }
+    );
+    for (var i = 0; i < records.length; i++) {
+      records[i].set("is_used", true);
+      records[i].set("status", _WA_OTP_STATUS_INVALIDATED);
+      app.save(records[i]);
+    }
+  }
+
+  function _waOtpMarkDeliveryFailed(recordId) {
+    try {
+      $app.runInTransaction(function(txApp) {
+        var record = txApp.findRecordById("phone_verification_otps", recordId);
+        if (record.getString("status") === _WA_OTP_STATUS_PENDING) {
+          record.set("status", _WA_OTP_STATUS_FAILED);
+          record.set("is_used", true);
+          txApp.save(record);
+        }
+      });
+    } catch (_) {
+      $app.logger().error("WhatsApp OTP delivery cleanup failed");
+    }
+  }
+
+  function _waOtpSendCooldownReached(app, userId, phone, cutoff) {
+    return _waOtpAtLimit(app, "user = {:user} && created >= {:cutoff}", {
+      user: userId,
+      cutoff: cutoff
+    }, 1) || _waOtpAtLimit(app, "phone = {:phone} && created >= {:cutoff}", {
+      phone: phone,
+      cutoff: cutoff
+    }, 1);
+  }
+
   var user = _waOtpAuthenticatedUser(e);
   if (!user) {
     return e.json(401, {
@@ -413,6 +585,89 @@ routerAdd("POST", "/api/auth/request-whatsapp-otp", function(e) {
 });
 
 routerAdd("POST", "/api/auth/verify-whatsapp-otp", function(e) {
+  var _WA_OTP_MAX_FAILURES_PER_CODE = 5;
+  var _WA_OTP_MAX_FAILURES_PER_HOUR = 10;
+  var _WA_OTP_STATUS_ACTIVE = "active";
+  var _WA_OTP_STATUS_EXPIRED = "expired";
+  var _WA_OTP_STATUS_LOCKED = "locked";
+  var _WA_OTP_STATUS_USED = "used";
+
+  function _waOtpDate(value) {
+    return new Date(value).toISOString().replace("T", " ");
+  }
+
+  function _waOtpNormalizeMalaysianPhone(value) {
+    var phone = String(value || "").trim().replace(/[\s().-]/g, "");
+    if (/^01\d{8,9}$/.test(phone)) {
+      phone = "+6" + phone;
+    } else if (/^601\d{8,9}$/.test(phone)) {
+      phone = "+" + phone;
+    }
+    if (!/^\+601\d{8,9}$/.test(phone)) return "";
+    return phone;
+  }
+
+  function _waOtpAuthenticatedUser(event) {
+    if (!event.auth) return null;
+    try {
+      if (event.auth.collection().name !== "users") return null;
+      return $app.findRecordById("users", event.auth.id);
+    } catch (_) {
+      return null;
+    }
+  }
+
+  function _waOtpHash(code, salt) {
+    return $security.sha256(salt + ":" + code);
+  }
+
+  function _waOtpRecords(app, filter, sort, limit, params) {
+    return app.findRecordsByFilter(
+      "phone_verification_otps",
+      filter,
+      sort || "",
+      limit || 0,
+      0,
+      params || {}
+    );
+  }
+
+  function _waOtpFailureCount(app, filter, params) {
+    var records = _waOtpRecords(app, filter, "-created", 100, params);
+    var count = 0;
+    for (var i = 0; i < records.length; i++) {
+      count += records[i].getInt("failed_attempts");
+    }
+    return count;
+  }
+
+  function _waOtpUserFailureCount(app, userId, cutoff) {
+    return _waOtpFailureCount(
+      app,
+      "user = {:user} && created >= {:cutoff}",
+      { user: userId, cutoff: cutoff }
+    );
+  }
+
+  function _waOtpPhoneFailureCount(app, phone, cutoff) {
+    return _waOtpFailureCount(
+      app,
+      "phone = {:phone} && created >= {:cutoff}",
+      { phone: phone, cutoff: cutoff }
+    );
+  }
+
+  function _waOtpFailureLimitReached(codeFailures, userFailures, phoneFailures) {
+    return codeFailures >= _WA_OTP_MAX_FAILURES_PER_CODE ||
+      userFailures >= _WA_OTP_MAX_FAILURES_PER_HOUR ||
+      phoneFailures >= _WA_OTP_MAX_FAILURES_PER_HOUR;
+  }
+
+  function _waOtpIsExpired(now, expiresAt) {
+    var expiry = new Date(String(expiresAt || "").replace(" ", "T")).getTime();
+    return !isFinite(expiry) || now >= expiry;
+  }
+
   var user = _waOtpAuthenticatedUser(e);
   if (!user) {
     return e.json(401, {
