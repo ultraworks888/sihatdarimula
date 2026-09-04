@@ -1,6 +1,5 @@
 import { useState, useEffect, useRef } from "react";
 import { useNavigate } from "react-router-dom";
-import { useAuth } from "../contexts/AuthContext";
 import { useLang } from "../contexts/LanguageContext";
 import pb from "../lib/pocketbase";
 import AppLogo from "../components/AppLogo";
@@ -15,7 +14,6 @@ function formatDisplay(val: string): string {
 type Step = "phone" | "otp" | "saving";
 
 export default function PhoneEntry() {
-  const { user } = useAuth();
   const { t } = useLang();
   const navigate = useNavigate();
   const [phone, setPhone] = useState("+60");
@@ -24,9 +22,7 @@ export default function PhoneEntry() {
   const [error, setError] = useState("");
   const [sendingOtp, setSendingOtp] = useState(false);
   const [verifying, setVerifying] = useState(false);
-  const [canSkipOtp, setCanSkipOtp] = useState(false);
   const [cooldown, setCooldown] = useState(0);
-  const [otpVerified, setOtpVerified] = useState(false);
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   const cleanPhone = phone.replace(/[\s-]/g, "");
@@ -62,19 +58,17 @@ export default function PhoneEntry() {
     try {
       const res = await fetch(`${import.meta.env.VITE_POCKETBASE_URL}/api/auth/request-whatsapp-otp`, {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: {
+          "Authorization": `Bearer ${pb.authStore.token}`,
+          "Content-Type": "application/json",
+        },
         body: JSON.stringify({ phone: cleanPhone }),
       });
       const data = await res.json();
       if (res.ok && data.ok) {
         setStep("otp");
         startCooldown();
-      } else if (data.error === "whatsapp_not_configured") {
-        setCanSkipOtp(true);
-        setError("WhatsApp OTP is not yet configured. You can save your number without verification for now.");
       } else {
-        // Log Meta's raw error detail to console for diagnosis
-        if (data.detail) console.error("WhatsApp OTP error detail:", data.detail);
         setError(data.message || t("somethingWrong"));
       }
     } catch {
@@ -89,13 +83,15 @@ export default function PhoneEntry() {
     try {
       const res = await fetch(`${import.meta.env.VITE_POCKETBASE_URL}/api/auth/verify-whatsapp-otp`, {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: {
+          "Authorization": `Bearer ${pb.authStore.token}`,
+          "Content-Type": "application/json",
+        },
         body: JSON.stringify({ phone: cleanPhone, code: otpCode }),
       });
       const data = await res.json();
       if (res.ok && data.ok) {
-        setOtpVerified(true);
-        await savePhone();
+        await completeVerification();
       } else {
         setError(data.message || "Invalid code. Please try again.");
       }
@@ -104,11 +100,10 @@ export default function PhoneEntry() {
     } finally { setVerifying(false); }
   };
 
-  const savePhone = async () => {
-    if (!user) return;
+  const completeVerification = async () => {
     setStep("saving");
     try {
-      await pb.collection("users").update(user.id, { phone: cleanPhone });
+      await pb.collection("users").authRefresh();
       // Fire-and-forget: send WhatsApp welcome message via Meta Cloud API.
       // Navigation is NOT blocked by whether this succeeds or fails.
       fetch(`${import.meta.env.VITE_POCKETBASE_URL}/api/whatsapp/send-welcome`, {
@@ -181,22 +176,16 @@ export default function PhoneEntry() {
             <div className="flex items-center gap-2">
               <span className="text-xl shrink-0">🇲🇾</span>
               <input type="tel" value={phone} onChange={e => handlePhoneChange(e.target.value)}
-                className={`glass-input w-full px-4 py-2.5 rounded-2xl outline-none text-sm ${error && !canSkipOtp ? "!border-rose-300" : ""}`}
+                className={`glass-input w-full px-4 py-2.5 rounded-2xl outline-none text-sm ${error ? "!border-rose-300" : ""}`}
                 placeholder="+60123456789" />
             </div>
             <p className="text-gray-400 text-xs mt-1.5">{t("myPhoneFormat")}</p>
           </div>
-          {error && <p className={`text-xs text-center leading-relaxed ${canSkipOtp ? "text-amber-600" : "text-rose-500"}`}>{error}</p>}
+          {error && <p className="text-xs text-center leading-relaxed text-rose-500">{error}</p>}
           <button onClick={sendOtp} disabled={sendingOtp || !isValidPhone}
             className="glass-btn w-full py-3 rounded-2xl text-white font-bold flex items-center justify-center gap-2">
             {sendingOtp ? "Sending..." : <><MessageCircle size={16} /> Verify via WhatsApp OTP</>}
           </button>
-          {canSkipOtp && (
-            <button onClick={savePhone}
-              className="w-full py-2.5 text-sm text-gray-500 hover:text-gray-700 transition-colors border border-gray-200 rounded-2xl">
-              Continue without verification
-            </button>
-          )}
         </div>
       </div>
     </div>

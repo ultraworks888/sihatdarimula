@@ -1,80 +1,249 @@
 /**
- * WhatsApp OTP for phone verification — My Healthy Start
+ * Authenticated WhatsApp OTP phone verification — Sihat Dari Mula
+ *
+ * Both routes require a users-collection PocketBase session. The caller is
+ * always derived from e.auth; no client-supplied user identifier is accepted.
  *
  * POST /api/auth/request-whatsapp-otp
  *   Body: { phone: "+601XXXXXXXXX" }
- *   Generates a 6-digit OTP, stores it in phone_otps, sends via Meta Cloud API.
- *   Requires in lms_settings:
- *     - whatsapp_phone_number_id   Meta Phone Number ID
- *     - whatsapp_access_token      Permanent System User token
- *     - whatsapp_api_version       e.g. "v20.0" (optional, defaults to v20.0)
- *   Meta template: sdm_otp_verify (AUTHENTICATION, en_US, approved)
- *   Template structure:
- *     - Body: {{1}} and {{2}} — both = OTP code
- *     - Button index 0: url type — OTP code appended as URL suffix
  *
  * POST /api/auth/verify-whatsapp-otp
  *   Body: { phone: "+601XXXXXXXXX", code: "123456" }
- *   Verifies the OTP, marks it as used.
+ *
+ * OTPs are generated with PocketBase's crypto/rand-backed $security helper and
+ * persisted only as a salted SHA-256 digest. The Meta request is deliberately
+ * outside database transactions.
  */
 
-routerAdd("POST", "/api/auth/request-whatsapp-otp", (e) => {
-  function getSetting(key) {
-    try {
-      const rec = $app.findFirstRecordByFilter("lms_settings", "key = {:k}", { k: key });
-      return rec.getString("value");
-    } catch(_) { return ""; }
+"use strict";
+
+var _WA_OTP_LENGTH = 6;
+var _WA_OTP_TTL_MS = 10 * 60 * 1000;
+var _WA_OTP_RESEND_COOLDOWN_MS = 60 * 1000;
+var _WA_OTP_SENDS_PER_HOUR = 5;
+var _WA_OTP_SENDS_PER_DAY = 10;
+var _WA_OTP_MAX_FAILURES_PER_CODE = 5;
+var _WA_OTP_MAX_FAILURES_PER_HOUR = 10;
+
+var _WA_OTP_STATUS_PENDING = "pending";
+var _WA_OTP_STATUS_ACTIVE = "active";
+var _WA_OTP_STATUS_FAILED = "failed";
+var _WA_OTP_STATUS_INVALIDATED = "invalidated";
+var _WA_OTP_STATUS_EXPIRED = "expired";
+var _WA_OTP_STATUS_LOCKED = "locked";
+var _WA_OTP_STATUS_USED = "used";
+
+function _waOtpDate(value) {
+  return new Date(value).toISOString().replace("T", " ");
+}
+
+function _waOtpNormalizeMalaysianPhone(value) {
+  var phone = String(value || "").trim().replace(/[\s().-]/g, "");
+
+  if (/^01\d{8,9}$/.test(phone)) {
+    phone = "+6" + phone;
+  } else if (/^601\d{8,9}$/.test(phone)) {
+    phone = "+" + phone;
   }
-  function formatPhone(p) {
-    p = String(p || "").replace(/[\s\-\(\)]/g, "");
-    if (p.startsWith("+")) p = p.slice(1);
-    return p;
+
+  if (!/^\+601\d{8,9}$/.test(phone)) return "";
+  return phone;
+}
+
+function _waOtpAuthenticatedUser(e) {
+  if (!e.auth) return null;
+
+  try {
+    if (e.auth.collection().name !== "users") return null;
+    return $app.findRecordById("users", e.auth.id);
+  } catch (_) {
+    return null;
   }
+}
 
-  const body  = e.requestInfo().body;
-  const phone = String(body.phone || "").trim();
-  if (!phone) return e.json(400, { error: "phone_required", message: "Phone number is required." });
+function _waOtpSetting(key) {
+  try {
+    return $app.findFirstRecordByFilter(
+      "lms_settings",
+      "key = {:key}",
+      { key: key }
+    ).getString("value");
+  } catch (_) {
+    return "";
+  }
+}
 
-  const phoneId = getSetting("whatsapp_phone_number_id");
-  const token   = getSetting("whatsapp_access_token");
-  const version = getSetting("whatsapp_api_version") || "v20.0";
+function _waOtpHash(code, salt) {
+  return $security.sha256(salt + ":" + code);
+}
 
-  if (!phoneId || !token) {
-    return e.json(503, {
-      error: "whatsapp_not_configured",
-      message: "WhatsApp OTP is not yet configured. Contact the administrator."
+function _waOtpRecords(app, filter, sort, limit, params) {
+  return app.findRecordsByFilter(
+    "phone_verification_otps",
+    filter,
+    sort || "",
+    limit || 0,
+    0,
+    params || {}
+  );
+}
+
+function _waOtpAtLimit(app, filter, params, limit) {
+  return _waOtpRecords(app, filter, "-created", limit, params).length >= limit;
+}
+
+function _waOtpInvalidateOpenRecords(app, userId, phone) {
+  var records = _waOtpRecords(
+    app,
+    "(user = {:user} || phone = {:phone}) && is_used = false",
+    "",
+    100,
+    { user: userId, phone: phone }
+  );
+
+  for (var i = 0; i < records.length; i++) {
+    records[i].set("is_used", true);
+    records[i].set("status", _WA_OTP_STATUS_INVALIDATED);
+    app.save(records[i]);
+  }
+}
+
+function _waOtpMarkDeliveryFailed(recordId) {
+  try {
+    $app.runInTransaction(function(txApp) {
+      var record = txApp.findRecordById("phone_verification_otps", recordId);
+      if (record.getString("status") === _WA_OTP_STATUS_PENDING) {
+        record.set("status", _WA_OTP_STATUS_FAILED);
+        record.set("is_used", true);
+        txApp.save(record);
+      }
+    });
+  } catch (_) {
+    $app.logger().error("WhatsApp OTP delivery cleanup failed");
+  }
+}
+
+function _waOtpFailureCount(app, userId, phone, cutoff) {
+  var records = _waOtpRecords(
+    app,
+    "user = {:user} && phone = {:phone} && created >= {:cutoff}",
+    "-created",
+    100,
+    { user: userId, phone: phone, cutoff: cutoff }
+  );
+  var count = 0;
+
+  for (var i = 0; i < records.length; i++) {
+    count += records[i].getInt("failed_attempts");
+  }
+  return count;
+}
+
+routerAdd("POST", "/api/auth/request-whatsapp-otp", function(e) {
+  var user = _waOtpAuthenticatedUser(e);
+  if (!user) {
+    return e.json(401, {
+      error: "authentication_required",
+      message: "Authentication is required. Please sign in again."
     });
   }
 
-  // Generate 6-digit OTP
-  const code         = String(Math.floor(100000 + Math.random() * 900000));
-  const expiresAt    = new Date(Date.now() + 10 * 60 * 1000);
-  const expiresAtStr = expiresAt.toISOString().replace("T", " ").slice(0, 23) + "Z";
+  var body = e.requestInfo().body;
+  var phone = _waOtpNormalizeMalaysianPhone(body.phone);
+  if (!phone) {
+    return e.json(400, {
+      error: "invalid_phone",
+      message: "Enter a valid Malaysian mobile number."
+    });
+  }
 
-  // Invalidate any existing unused OTPs for this phone
+  var phoneId = _waOtpSetting("whatsapp_phone_number_id");
+  var token = _waOtpSetting("whatsapp_access_token");
+  var version = _waOtpSetting("whatsapp_api_version") || "v20.0";
+  if (!phoneId || !token) {
+    return e.json(503, {
+      error: "service_unavailable",
+      message: "WhatsApp verification is temporarily unavailable. Please try again later."
+    });
+  }
+
+  var userId = user.id;
+  var now = Date.now();
+  var minuteCutoff = _waOtpDate(now - _WA_OTP_RESEND_COOLDOWN_MS);
+  var hourCutoff = _waOtpDate(now - 60 * 60 * 1000);
+  var dayCutoff = _waOtpDate(now - 24 * 60 * 60 * 1000);
+  var code = $security.randomStringWithAlphabet(_WA_OTP_LENGTH, "0123456789");
+  var salt = $security.randomString(32);
+  var hash = _waOtpHash(code, salt);
+  var expiresAt = _waOtpDate(now + _WA_OTP_TTL_MS);
+  var recordId = "";
+  var throttled = false;
+
   try {
-    const existing = $app.findRecordsByFilter("phone_otps", "phone = {:p} && is_used = false", "", 0, 0, { p: phone });
-    for (const rec of existing) { rec.set("is_used", true); $app.save(rec); }
-  } catch(_) {}
+    $app.runInTransaction(function(txApp) {
+      var recentPairFilter = "user = {:user} && phone = {:phone} && created >= {:cutoff}";
 
-  // Store new OTP
-  const otpCol = $app.findCollectionByNameOrId("phone_otps");
-  const otpRec = new Record(otpCol);
-  otpRec.set("phone",      phone);
-  otpRec.set("code",       code);
-  otpRec.set("expires_at", expiresAtStr);
-  otpRec.set("is_used",    false);
-  $app.save(otpRec);
+      if (_waOtpAtLimit(txApp, recentPairFilter, {
+        user: userId,
+        phone: phone,
+        cutoff: minuteCutoff
+      }, 1) ||
+        _waOtpAtLimit(txApp, "user = {:user} && created >= {:cutoff}", {
+          user: userId,
+          cutoff: hourCutoff
+        }, _WA_OTP_SENDS_PER_HOUR) ||
+        _waOtpAtLimit(txApp, "phone = {:phone} && created >= {:cutoff}", {
+          phone: phone,
+          cutoff: hourCutoff
+        }, _WA_OTP_SENDS_PER_HOUR) ||
+        _waOtpAtLimit(txApp, "user = {:user} && created >= {:cutoff}", {
+          user: userId,
+          cutoff: dayCutoff
+        }, _WA_OTP_SENDS_PER_DAY) ||
+        _waOtpAtLimit(txApp, "phone = {:phone} && created >= {:cutoff}", {
+          phone: phone,
+          cutoff: dayCutoff
+        }, _WA_OTP_SENDS_PER_DAY)) {
+        throttled = true;
+        return;
+      }
 
-  // Send via Meta Cloud API — sdm_otp_verify (AUTHENTICATION, en_US)
-  // Body has {{1}} and {{2}} — both are the OTP code.
-  // Button at index 0 is url type — OTP code is the URL suffix param.
-  const payload = {
+      _waOtpInvalidateOpenRecords(txApp, userId, phone);
+
+      var collection = txApp.findCollectionByNameOrId("phone_verification_otps");
+      var record = new Record(collection);
+      record.set("user", userId);
+      record.set("phone", phone);
+      record.set("otp_hash", hash);
+      record.set("otp_salt", salt);
+      record.set("expires_at", expiresAt);
+      record.set("failed_attempts", 0);
+      record.set("status", _WA_OTP_STATUS_PENDING);
+      record.set("is_used", false);
+      txApp.save(record);
+      recordId = record.id;
+    });
+  } catch (_) {
+    $app.logger().error("WhatsApp OTP request transaction failed");
+    return e.json(500, {
+      error: "verification_unavailable",
+      message: "Phone verification is temporarily unavailable. Please try again."
+    });
+  }
+
+  if (throttled) {
+    return e.json(429, {
+      error: "too_many_requests",
+      message: "Too many verification requests. Please wait before trying again."
+    });
+  }
+
+  var payload = {
     messaging_product: "whatsapp",
-    to:   formatPhone(phone),
+    to: phone.slice(1),
     type: "template",
     template: {
-      name:     "sdm_otp_verify",
+      name: "sdm_otp_verify",
       language: { code: "en_US" },
       components: [
         {
@@ -85,67 +254,222 @@ routerAdd("POST", "/api/auth/request-whatsapp-otp", (e) => {
           ]
         },
         {
-          type:       "button",
-          sub_type:   "url",
-          index:      0,
+          type: "button",
+          sub_type: "url",
+          index: 0,
           parameters: [{ type: "text", text: code }]
         }
       ]
     }
   };
 
-  const res = $http.send({
-    url:    `https://graph.facebook.com/${version}/${phoneId}/messages`,
-    method: "POST",
-    headers: {
-      "Authorization": `Bearer ${token}`,
-      "Content-Type":  "application/json",
-    },
-    body:    JSON.stringify(payload),
-    timeout: 15,
-  });
-
-  $app.logger().info("WhatsApp OTP Meta response", "status", res.statusCode, "body", res.raw);
-
-  if (res.statusCode >= 200 && res.statusCode < 300) {
-    return e.json(200, { ok: true, message: "OTP sent to your WhatsApp number." });
+  var response;
+  try {
+    response = $http.send({
+      url: "https://graph.facebook.com/" + version + "/" + phoneId + "/messages",
+      method: "POST",
+      headers: {
+        "Authorization": "Bearer " + token,
+        "Content-Type": "application/json"
+      },
+      body: JSON.stringify(payload),
+      timeout: 15
+    });
+  } catch (_) {
+    _waOtpMarkDeliveryFailed(recordId);
+    $app.logger().warn("WhatsApp OTP delivery request failed");
+    return e.json(503, {
+      error: "delivery_unavailable",
+      message: "The verification code could not be sent. Please try again later."
+    });
   }
 
-  let metaError = "";
-  try { metaError = JSON.stringify(res.json); } catch(_) { metaError = res.raw; }
-  return e.json(500, { error: "send_failed", message: "Failed to send WhatsApp message. Please try again.", detail: metaError });
-});
-
-
-routerAdd("POST", "/api/auth/verify-whatsapp-otp", (e) => {
-  const body  = e.requestInfo().body;
-  const phone = String(body.phone || "").trim();
-  const code  = String(body.code  || "").trim();
-
-  if (!phone || !code) {
-    return e.json(400, { error: "missing_fields", message: "Phone and OTP code are required." });
+  if (response.statusCode < 200 || response.statusCode >= 300) {
+    _waOtpMarkDeliveryFailed(recordId);
+    $app.logger().warn("WhatsApp OTP provider rejected delivery", "status", response.statusCode);
+    return e.json(503, {
+      error: "delivery_unavailable",
+      message: "The verification code could not be sent. Please try again later."
+    });
   }
 
   try {
-    const otp = $app.findFirstRecordByFilter(
-      "phone_otps",
-      "phone = {:p} && code = {:c} && is_used = false",
-      { p: phone, c: code }
-    );
-
-    const expiresStr = otp.getString("expires_at");
-    const expiry     = new Date(expiresStr.replace(" ", "T").replace("Z", "+00:00"));
-    if (Date.now() > expiry.getTime()) {
-      return e.json(400, { error: "expired", message: "This OTP has expired. Please request a new one." });
-    }
-
-    otp.set("is_used", true);
-    $app.save(otp);
-
-    $app.logger().info("WhatsApp OTP verified", "phone", phone.slice(0, 6) + "****");
-    return e.json(200, { ok: true, message: "Phone number verified successfully." });
-
-  } catch(_) {
-    return e.json(400, { error: "invalid_otp", message: "Invalid or expired code. Please try again." });
+    $app.runInTransaction(function(txApp) {
+      var record = txApp.findRecordById("phone_verification_otps", recordId);
+      if (record.getString("status") !== _WA_OTP_STATUS_PENDING || record.getBool("is_used")) {
+        throw new Error("OTP request is no longer pending");
+      }
+      record.set("status", _WA_OTP_STATUS_ACTIVE);
+      txApp.save(record);
+    });
+  } catch (_) {
+    _waOtpMarkDeliveryFailed(recordId);
+    $app.logger().error("WhatsApp OTP activation failed after delivery");
+    return e.json(503, {
+      error: "delivery_unavailable",
+      message: "The verification code could not be activated. Please request a new code."
+    });
   }
+
+  return e.json(200, {
+    ok: true,
+    message: "OTP sent to your WhatsApp number."
+  });
 });
+
+routerAdd("POST", "/api/auth/verify-whatsapp-otp", function(e) {
+  var user = _waOtpAuthenticatedUser(e);
+  if (!user) {
+    return e.json(401, {
+      error: "authentication_required",
+      message: "Authentication is required. Please sign in again."
+    });
+  }
+
+  var body = e.requestInfo().body;
+  var phone = _waOtpNormalizeMalaysianPhone(body.phone);
+  var code = String(body.code || "").trim();
+  if (!phone || !/^\d{6}$/.test(code)) {
+    return e.json(400, {
+      error: "verification_failed",
+      message: "The verification code is invalid or expired. Please request a new code."
+    });
+  }
+
+  var userId = user.id;
+  var now = Date.now();
+  var nowString = _waOtpDate(now);
+  var hourCutoff = _waOtpDate(now - 60 * 60 * 1000);
+  var outcome = "invalid";
+
+  try {
+    $app.runInTransaction(function(txApp) {
+      var records = _waOtpRecords(
+        txApp,
+        "user = {:user} && phone = {:phone} && status = {:status} && is_used = false",
+        "-created",
+        1,
+        { user: userId, phone: phone, status: _WA_OTP_STATUS_ACTIVE }
+      );
+
+      if (!records.length) return;
+
+      var record = records[0];
+      var failures = record.getInt("failed_attempts");
+      var hourlyFailures = _waOtpFailureCount(txApp, userId, phone, hourCutoff);
+      if (failures >= _WA_OTP_MAX_FAILURES_PER_CODE ||
+          hourlyFailures >= _WA_OTP_MAX_FAILURES_PER_HOUR) {
+        record.set("status", _WA_OTP_STATUS_LOCKED);
+        record.set("is_used", true);
+        txApp.save(record);
+        outcome = "throttled";
+        return;
+      }
+
+      var expiry = new Date(record.getString("expires_at").replace(" ", "T")).getTime();
+      if (!isFinite(expiry) || now > expiry) {
+        record.set("status", _WA_OTP_STATUS_EXPIRED);
+        record.set("is_used", true);
+        txApp.save(record);
+        return;
+      }
+
+      var expectedHash = record.getString("otp_hash");
+      var submittedHash = _waOtpHash(code, record.getString("otp_salt"));
+      if (!expectedHash || !$security.equal(expectedHash, submittedHash)) {
+        failures += 1;
+        record.set("failed_attempts", failures);
+        record.set("last_attempt_at", nowString);
+        if (failures >= _WA_OTP_MAX_FAILURES_PER_CODE ||
+            hourlyFailures + 1 >= _WA_OTP_MAX_FAILURES_PER_HOUR) {
+          record.set("status", _WA_OTP_STATUS_LOCKED);
+          record.set("is_used", true);
+          outcome = "throttled";
+        }
+        txApp.save(record);
+        return;
+      }
+
+      var existingOwners = txApp.findRecordsByFilter(
+        "users",
+        "phone = {:phone} && phone_verified = true && id != {:user}",
+        "",
+        1,
+        0,
+        { phone: phone, user: userId }
+      );
+      if (existingOwners.length) {
+        record.set("status", _WA_OTP_STATUS_USED);
+        record.set("is_used", true);
+        txApp.save(record);
+        return;
+      }
+
+      var authenticatedUser = txApp.findRecordById("users", userId);
+      record.set("status", _WA_OTP_STATUS_USED);
+      record.set("is_used", true);
+      record.set("last_attempt_at", nowString);
+      txApp.save(record);
+
+      authenticatedUser.set("phone", phone);
+      authenticatedUser.set("phone_verified", true);
+      authenticatedUser.set("phone_verified_at", nowString);
+      txApp.save(authenticatedUser);
+      outcome = "verified";
+    });
+  } catch (_) {
+    $app.logger().error("WhatsApp OTP verification transaction failed");
+    return e.json(500, {
+      error: "verification_unavailable",
+      message: "Phone verification is temporarily unavailable. Please try again."
+    });
+  }
+
+  if (outcome === "verified") {
+    $app.logger().info("WhatsApp OTP verification completed", "user", userId);
+    return e.json(200, {
+      ok: true,
+      message: "Phone number verified successfully."
+    });
+  }
+
+  if (outcome === "throttled") {
+    return e.json(429, {
+      error: "too_many_attempts",
+      message: "Too many verification attempts. Please request a new code later."
+    });
+  }
+
+  return e.json(400, {
+    error: "verification_failed",
+    message: "The verification code is invalid or expired. Please request a new code."
+  });
+});
+
+// Verification fields are server-managed. Native PocketBase superusers retain
+// an emergency recovery path. Ordinary phone profile updates remain permitted,
+// but changing the phone revokes any prior verification state.
+onRecordCreateRequest(function(e) {
+  if (!e.hasSuperuserAuth()) {
+    e.record.set("phone_verified", false);
+    e.record.set("phone_verified_at", "");
+  }
+  return e.next();
+}, "users");
+
+onRecordUpdateRequest(function(e) {
+  if (e.hasSuperuserAuth()) return e.next();
+
+  var body = e.requestInfo().body;
+  if (body["phone_verified"] !== undefined || body["phone_verified_at"] !== undefined) {
+    throw new ForbiddenError("Phone verification fields are server-managed.");
+  }
+
+  if (body["phone"] !== undefined &&
+      e.record.getString("phone") !== e.record.original().getString("phone")) {
+    e.record.set("phone_verified", false);
+    e.record.set("phone_verified_at", "");
+  }
+
+  return e.next();
+}, "users");
