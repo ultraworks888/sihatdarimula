@@ -83,9 +83,7 @@ migrate((app) => {
   });
   app.save(verifications);
 }, (app) => {
-  try {
-    app.delete(app.findCollectionByNameOrId("phone_verification_otps"));
-  } catch (_) {}
+  app.delete(app.findCollectionByNameOrId("phone_verification_otps"));
 
   const users = app.findCollectionByNameOrId("users");
   users.fields.removeByName("phone_verified_at");

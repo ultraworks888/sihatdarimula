@@ -24,6 +24,8 @@ var _WA_OTP_SENDS_PER_HOUR = 5;
 var _WA_OTP_SENDS_PER_DAY = 10;
 var _WA_OTP_MAX_FAILURES_PER_CODE = 5;
 var _WA_OTP_MAX_FAILURES_PER_HOUR = 10;
+var _WA_OTP_RETENTION_MS = 7 * 24 * 60 * 60 * 1000;
+var _WA_OTP_CLEANUP_BATCH_SIZE = 500;
 
 var _WA_OTP_STATUS_PENDING = "pending";
 var _WA_OTP_STATUS_ACTIVE = "active";
@@ -123,13 +125,13 @@ function _waOtpMarkDeliveryFailed(recordId) {
   }
 }
 
-function _waOtpFailureCount(app, userId, phone, cutoff) {
+function _waOtpFailureCount(app, filter, params) {
   var records = _waOtpRecords(
     app,
-    "user = {:user} && phone = {:phone} && created >= {:cutoff}",
+    filter,
     "-created",
     100,
-    { user: userId, phone: phone, cutoff: cutoff }
+    params
   );
   var count = 0;
 
@@ -138,6 +140,105 @@ function _waOtpFailureCount(app, userId, phone, cutoff) {
   }
   return count;
 }
+
+function _waOtpUserFailureCount(app, userId, cutoff) {
+  return _waOtpFailureCount(
+    app,
+    "user = {:user} && created >= {:cutoff}",
+    { user: userId, cutoff: cutoff }
+  );
+}
+
+function _waOtpPhoneFailureCount(app, phone, cutoff) {
+  return _waOtpFailureCount(
+    app,
+    "phone = {:phone} && created >= {:cutoff}",
+    { phone: phone, cutoff: cutoff }
+  );
+}
+
+function _waOtpFailureLimitReached(codeFailures, userFailures, phoneFailures) {
+  return codeFailures >= _WA_OTP_MAX_FAILURES_PER_CODE ||
+    userFailures >= _WA_OTP_MAX_FAILURES_PER_HOUR ||
+    phoneFailures >= _WA_OTP_MAX_FAILURES_PER_HOUR;
+}
+
+// Cooldown is deliberately enforced for both dimensions. A user cannot avoid
+// it by changing phone numbers, and a phone cannot be spammed through multiple
+// authenticated accounts.
+function _waOtpSendCooldownReached(app, userId, phone, cutoff) {
+  return _waOtpAtLimit(app, "user = {:user} && created >= {:cutoff}", {
+    user: userId,
+    cutoff: cutoff
+  }, 1) || _waOtpAtLimit(app, "phone = {:phone} && created >= {:cutoff}", {
+    phone: phone,
+    cutoff: cutoff
+  }, 1);
+}
+
+function _waOtpIsExpired(now, expiresAt) {
+  var expiry = new Date(String(expiresAt || "").replace(" ", "T")).getTime();
+  return !isFinite(expiry) || now >= expiry;
+}
+
+function _waOtpExpireStaleRecords(app, nowString) {
+  var records = _waOtpRecords(
+    app,
+    "(status = {:pending} || status = {:active}) && is_used = false && expires_at <= {:now}",
+    "created",
+    _WA_OTP_CLEANUP_BATCH_SIZE,
+    {
+      pending: _WA_OTP_STATUS_PENDING,
+      active: _WA_OTP_STATUS_ACTIVE,
+      now: nowString
+    }
+  );
+
+  for (var i = 0; i < records.length; i++) {
+    records[i].set("status", _WA_OTP_STATUS_EXPIRED);
+    records[i].set("is_used", true);
+    app.save(records[i]);
+  }
+}
+
+function _waOtpDeleteRetainedTerminalRecords(app, cutoff) {
+  var records = _waOtpRecords(
+    app,
+    "(status = {:failed} || status = {:invalidated} || status = {:expired} || status = {:locked} || status = {:used}) && created < {:cutoff}",
+    "created",
+    _WA_OTP_CLEANUP_BATCH_SIZE,
+    {
+      failed: _WA_OTP_STATUS_FAILED,
+      invalidated: _WA_OTP_STATUS_INVALIDATED,
+      expired: _WA_OTP_STATUS_EXPIRED,
+      locked: _WA_OTP_STATUS_LOCKED,
+      used: _WA_OTP_STATUS_USED,
+      cutoff: cutoff
+    }
+  );
+
+  for (var i = 0; i < records.length; i++) {
+    app.delete(records[i]);
+  }
+}
+
+// Hourly, first expire stale pending/active records, then retain terminal audit
+// metadata for seven days. Valid active OTPs are never deleted by this job.
+cronAdd("phone_verification_otp_cleanup", "23 * * * *", function() {
+  var now = Date.now();
+
+  try {
+    $app.runInTransaction(function(txApp) {
+      _waOtpExpireStaleRecords(txApp, _waOtpDate(now));
+      _waOtpDeleteRetainedTerminalRecords(
+        txApp,
+        _waOtpDate(now - _WA_OTP_RETENTION_MS)
+      );
+    });
+  } catch (_) {
+    $app.logger().error("WhatsApp OTP retention cleanup failed");
+  }
+});
 
 routerAdd("POST", "/api/auth/request-whatsapp-otp", function(e) {
   var user = _waOtpAuthenticatedUser(e);
@@ -181,13 +282,7 @@ routerAdd("POST", "/api/auth/request-whatsapp-otp", function(e) {
 
   try {
     $app.runInTransaction(function(txApp) {
-      var recentPairFilter = "user = {:user} && phone = {:phone} && created >= {:cutoff}";
-
-      if (_waOtpAtLimit(txApp, recentPairFilter, {
-        user: userId,
-        phone: phone,
-        cutoff: minuteCutoff
-      }, 1) ||
+      if (_waOtpSendCooldownReached(txApp, userId, phone, minuteCutoff) ||
         _waOtpAtLimit(txApp, "user = {:user} && created >= {:cutoff}", {
           user: userId,
           cutoff: hourCutoff
@@ -356,9 +451,13 @@ routerAdd("POST", "/api/auth/verify-whatsapp-otp", function(e) {
 
       var record = records[0];
       var failures = record.getInt("failed_attempts");
-      var hourlyFailures = _waOtpFailureCount(txApp, userId, phone, hourCutoff);
-      if (failures >= _WA_OTP_MAX_FAILURES_PER_CODE ||
-          hourlyFailures >= _WA_OTP_MAX_FAILURES_PER_HOUR) {
+      var hourlyUserFailures = _waOtpUserFailureCount(txApp, userId, hourCutoff);
+      var hourlyPhoneFailures = _waOtpPhoneFailureCount(txApp, phone, hourCutoff);
+      if (_waOtpFailureLimitReached(
+        failures,
+        hourlyUserFailures,
+        hourlyPhoneFailures
+      )) {
         record.set("status", _WA_OTP_STATUS_LOCKED);
         record.set("is_used", true);
         txApp.save(record);
@@ -366,8 +465,7 @@ routerAdd("POST", "/api/auth/verify-whatsapp-otp", function(e) {
         return;
       }
 
-      var expiry = new Date(record.getString("expires_at").replace(" ", "T")).getTime();
-      if (!isFinite(expiry) || now > expiry) {
+      if (_waOtpIsExpired(now, record.getString("expires_at"))) {
         record.set("status", _WA_OTP_STATUS_EXPIRED);
         record.set("is_used", true);
         txApp.save(record);
@@ -380,8 +478,11 @@ routerAdd("POST", "/api/auth/verify-whatsapp-otp", function(e) {
         failures += 1;
         record.set("failed_attempts", failures);
         record.set("last_attempt_at", nowString);
-        if (failures >= _WA_OTP_MAX_FAILURES_PER_CODE ||
-            hourlyFailures + 1 >= _WA_OTP_MAX_FAILURES_PER_HOUR) {
+        if (_waOtpFailureLimitReached(
+          failures,
+          hourlyUserFailures + 1,
+          hourlyPhoneFailures + 1
+        )) {
           record.set("status", _WA_OTP_STATUS_LOCKED);
           record.set("is_used", true);
           outcome = "throttled";
@@ -458,13 +559,15 @@ onRecordCreateRequest(function(e) {
 }, "users");
 
 onRecordUpdateRequest(function(e) {
-  if (e.hasSuperuserAuth()) return e.next();
-
   var body = e.requestInfo().body;
-  if (body["phone_verified"] !== undefined || body["phone_verified_at"] !== undefined) {
+  if (!e.hasSuperuserAuth() &&
+      (body["phone_verified"] !== undefined || body["phone_verified_at"] !== undefined)) {
     throw new ForbiddenError("Phone verification fields are server-managed.");
   }
 
+  // Applies to every REST caller, including native PocketBase superusers. A
+  // superuser may use the emergency recovery path only in a later request once
+  // the persisted phone is unchanged.
   if (body["phone"] !== undefined &&
       e.record.getString("phone") !== e.record.original().getString("phone")) {
     e.record.set("phone_verified", false);
