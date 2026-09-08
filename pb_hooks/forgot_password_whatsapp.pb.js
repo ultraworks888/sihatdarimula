@@ -74,7 +74,7 @@ function _pwOtpSetting(key) {
       "key = {:key}",
       { key: key }
     ).getString("value");
-  } catch (_) {
+  } catch (_) { require(__hooks + "/maintenance.js").rethrow(_);
     return "";
   }
 }
@@ -86,7 +86,7 @@ function _pwOtpFindEligibleUser(app, phone) {
       "phone = {:phone} && phone_verified = true",
       { phone: phone }
     );
-  } catch (_) {
+  } catch (_) { require(__hooks + "/maintenance.js").rethrow(_);
     return null;
   }
 }
@@ -143,7 +143,7 @@ function _pwOtpInvalidateOtherOpenRecords(app, userId, phone, exceptId) {
   for (var i = 0; i < records.length; i++) {
     records[i].set("status", _PW_OTP_STATUS_INVALIDATED);
     records[i].set("is_used", true);
-    app.save(records[i]);
+    require(__hooks + "/maintenance.js").save(app, records[i]);
   }
 }
 
@@ -154,10 +154,10 @@ function _pwOtpMarkDeliveryFailed(recordId) {
       if (record.getString("status") === _PW_OTP_STATUS_PENDING) {
         record.set("status", _PW_OTP_STATUS_FAILED);
         record.set("is_used", true);
-        txApp.save(record);
+        require(__hooks + "/maintenance.js").save(txApp, record);
       }
     });
-  } catch (_) {
+  } catch (_) { require(__hooks + "/maintenance.js").rethrow(_);
     $app.logger().error("Password reset OTP delivery cleanup failed");
   }
 }
@@ -183,7 +183,7 @@ function _pwOtpExpireStaleRecords(app, nowString) {
   for (var i = 0; i < records.length; i++) {
     records[i].set("status", _PW_OTP_STATUS_EXPIRED);
     records[i].set("is_used", true);
-    app.save(records[i]);
+    require(__hooks + "/maintenance.js").save(app, records[i]);
   }
 }
 
@@ -204,13 +204,14 @@ function _pwOtpDeleteRetainedTerminalRecords(app, cutoff) {
   );
 
   for (var i = 0; i < records.length; i++) {
-    app.delete(records[i]);
+    require(__hooks + "/maintenance.js").remove(app, records[i]);
   }
 }
 
 // Terminal records are retained for seven days and processed in bounded
 // batches. Active, unexpired OTPs are never selected for deletion.
 cronAdd("password_reset_otp_cleanup", "37 * * * *", function() {
+  return require(__hooks + "/maintenance.js").background(function() {
   var _PW_OTP_RETENTION_MS = 7 * 24 * 60 * 60 * 1000;
   var _PW_OTP_CLEANUP_BATCH_SIZE = 500;
   var _PW_OTP_STATUS_PENDING = "pending";
@@ -251,7 +252,7 @@ cronAdd("password_reset_otp_cleanup", "37 * * * *", function() {
     for (var i = 0; i < records.length; i++) {
       records[i].set("status", _PW_OTP_STATUS_EXPIRED);
       records[i].set("is_used", true);
-      app.save(records[i]);
+      require(__hooks + "/maintenance.js").save(app, records[i]);
     }
   }
 
@@ -271,7 +272,7 @@ cronAdd("password_reset_otp_cleanup", "37 * * * *", function() {
       }
     );
     for (var i = 0; i < records.length; i++) {
-      app.delete(records[i]);
+      require(__hooks + "/maintenance.js").remove(app, records[i]);
     }
   }
 
@@ -285,12 +286,14 @@ cronAdd("password_reset_otp_cleanup", "37 * * * *", function() {
         _pwOtpDate(now - _PW_OTP_RETENTION_MS)
       );
     });
-  } catch (_) {
+  } catch (_) { require(__hooks + "/maintenance.js").rethrow(_);
     $app.logger().error("Password reset OTP retention cleanup failed");
   }
+  });
 });
 
 routerAdd("POST", "/api/auth/request-password-reset-whatsapp", function(e) {
+  return require(__hooks + "/maintenance.js").http(e, function() {
   var _PW_OTP_LENGTH = 6;
   var _PW_OTP_TTL_MS = 10 * 60 * 1000;
   var _PW_OTP_RESEND_COOLDOWN_MS = 60 * 1000;
@@ -330,7 +333,7 @@ routerAdd("POST", "/api/auth/request-password-reset-whatsapp", function(e) {
         "key = {:key}",
         { key: key }
       ).getString("value");
-    } catch (_) {
+    } catch (_) { require(__hooks + "/maintenance.js").rethrow(_);
       return "";
     }
   }
@@ -342,7 +345,7 @@ routerAdd("POST", "/api/auth/request-password-reset-whatsapp", function(e) {
         "phone = {:phone} && phone_verified = true",
         { phone: phone }
       );
-    } catch (_) {
+    } catch (_) { require(__hooks + "/maintenance.js").rethrow(_);
       return null;
     }
   }
@@ -377,7 +380,7 @@ routerAdd("POST", "/api/auth/request-password-reset-whatsapp", function(e) {
     for (var i = 0; i < records.length; i++) {
       records[i].set("status", _PW_OTP_STATUS_INVALIDATED);
       records[i].set("is_used", true);
-      app.save(records[i]);
+      require(__hooks + "/maintenance.js").save(app, records[i]);
     }
   }
 
@@ -388,10 +391,10 @@ routerAdd("POST", "/api/auth/request-password-reset-whatsapp", function(e) {
         if (record.getString("status") === _PW_OTP_STATUS_PENDING) {
           record.set("status", _PW_OTP_STATUS_FAILED);
           record.set("is_used", true);
-          txApp.save(record);
+          require(__hooks + "/maintenance.js").save(txApp, record);
         }
       });
-    } catch (_) {
+    } catch (_) { require(__hooks + "/maintenance.js").rethrow(_);
       $app.logger().error("Password reset OTP delivery cleanup failed");
     }
   }
@@ -454,10 +457,10 @@ routerAdd("POST", "/api/auth/request-password-reset-whatsapp", function(e) {
       record.set("failed_attempts", 0);
       record.set("status", _PW_OTP_STATUS_PENDING);
       record.set("is_used", false);
-      txApp.save(record);
+      require(__hooks + "/maintenance.js").save(txApp, record);
       recordId = record.id;
     });
-  } catch (_) {
+  } catch (_) { require(__hooks + "/maintenance.js").rethrow(_);
     $app.logger().error("Password reset OTP request transaction failed");
     return _pwOtpGenericInitiationResponse(e);
   }
@@ -491,7 +494,7 @@ routerAdd("POST", "/api/auth/request-password-reset-whatsapp", function(e) {
 
   var response;
   try {
-    response = $http.send({
+    response = require(__hooks + "/maintenance.js").send({
       url: "https://graph.facebook.com/" + version + "/" + phoneId + "/messages",
       method: "POST",
       headers: {
@@ -501,7 +504,7 @@ routerAdd("POST", "/api/auth/request-password-reset-whatsapp", function(e) {
       body: JSON.stringify(payload),
       timeout: 15
     });
-  } catch (_) {
+  } catch (_) { require(__hooks + "/maintenance.js").rethrow(_);
     _pwOtpMarkDeliveryFailed(recordId);
     $app.logger().warn("Password reset OTP provider request failed");
     return _pwOtpGenericInitiationResponse(e);
@@ -527,9 +530,9 @@ routerAdd("POST", "/api/auth/request-password-reset-whatsapp", function(e) {
 
       _pwOtpInvalidateOtherOpenRecords(txApp, userId, phone, recordId);
       record.set("status", _PW_OTP_STATUS_ACTIVE);
-      txApp.save(record);
+      require(__hooks + "/maintenance.js").save(txApp, record);
     });
-  } catch (_) {
+  } catch (_) { require(__hooks + "/maintenance.js").rethrow(_);
     _pwOtpMarkDeliveryFailed(recordId);
     $app.logger().error("Password reset OTP activation failed after delivery");
   }
@@ -538,9 +541,11 @@ routerAdd("POST", "/api/auth/request-password-reset-whatsapp", function(e) {
   // shape. Failed provider records count toward quotas (fail-closed), but are
   // never activated and therefore cannot authorize a reset.
   return _pwOtpGenericInitiationResponse(e);
+  });
 });
 
 routerAdd("POST", "/api/auth/confirm-password-reset-whatsapp", function(e) {
+  return require(__hooks + "/maintenance.js").http(e, function() {
   var _PW_OTP_MAX_FAILURES_PER_CODE = 5;
   var _PW_OTP_MAX_FAILURES_PER_HOUR = 10;
   var _PW_OTP_STATUS_ACTIVE = "active";
@@ -617,7 +622,7 @@ routerAdd("POST", "/api/auth/confirm-password-reset-whatsapp", function(e) {
     for (var i = 0; i < records.length; i++) {
       records[i].set("status", _PW_OTP_STATUS_INVALIDATED);
       records[i].set("is_used", true);
-      app.save(records[i]);
+      require(__hooks + "/maintenance.js").save(app, records[i]);
     }
   }
 
@@ -669,14 +674,14 @@ routerAdd("POST", "/api/auth/confirm-password-reset-whatsapp", function(e) {
       if (_pwOtpFailureLimitReached(failures, hourlyPhoneFailures)) {
         record.set("status", _PW_OTP_STATUS_LOCKED);
         record.set("is_used", true);
-        txApp.save(record);
+        require(__hooks + "/maintenance.js").save(txApp, record);
         return;
       }
 
       if (_pwOtpIsExpired(now, record.getString("expires_at"))) {
         record.set("status", _PW_OTP_STATUS_EXPIRED);
         record.set("is_used", true);
-        txApp.save(record);
+        require(__hooks + "/maintenance.js").save(txApp, record);
         return;
       }
 
@@ -690,7 +695,7 @@ routerAdd("POST", "/api/auth/confirm-password-reset-whatsapp", function(e) {
           record.set("status", _PW_OTP_STATUS_LOCKED);
           record.set("is_used", true);
         }
-        txApp.save(record);
+        require(__hooks + "/maintenance.js").save(txApp, record);
         return;
       }
 
@@ -698,17 +703,17 @@ routerAdd("POST", "/api/auth/confirm-password-reset-whatsapp", function(e) {
       var user;
       try {
         user = txApp.findRecordById("users", userId);
-      } catch (_) {
+      } catch (_) { require(__hooks + "/maintenance.js").rethrow(_);
         record.set("status", _PW_OTP_STATUS_INVALIDATED);
         record.set("is_used", true);
-        txApp.save(record);
+        require(__hooks + "/maintenance.js").save(txApp, record);
         return;
       }
 
       if (user.getString("phone") !== phone || !user.getBool("phone_verified")) {
         record.set("status", _PW_OTP_STATUS_INVALIDATED);
         record.set("is_used", true);
-        txApp.save(record);
+        require(__hooks + "/maintenance.js").save(txApp, record);
         return;
       }
 
@@ -716,13 +721,13 @@ routerAdd("POST", "/api/auth/confirm-password-reset-whatsapp", function(e) {
       record.set("status", _PW_OTP_STATUS_USED);
       record.set("is_used", true);
       record.set("last_attempt_at", nowString);
-      txApp.save(record);
+      require(__hooks + "/maintenance.js").save(txApp, record);
 
       user.setPassword(password);
-      txApp.save(user);
+      require(__hooks + "/maintenance.js").save(txApp, user);
       outcome = "reset";
     });
-  } catch (_) {
+  } catch (_) { require(__hooks + "/maintenance.js").rethrow(_);
     $app.logger().error("Password reset OTP transaction failed");
     return e.json(500, {
       error: "reset_unavailable",
@@ -736,5 +741,6 @@ routerAdd("POST", "/api/auth/confirm-password-reset-whatsapp", function(e) {
   return e.json(200, {
     ok: true,
     message: "Password reset successfully."
+  });
   });
 });

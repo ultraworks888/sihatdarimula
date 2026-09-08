@@ -22,11 +22,12 @@
 // Frontend calls this (fire-and-forget) right after saving the user's phone number.
 
 routerAdd("POST", "/api/whatsapp/send-welcome", (e) => {
+  return require(__hooks + "/maintenance.js").http(e, function() {
   if (!e.auth) return e.json(401, { error: "Unauthorized" });
 
   function getSetting(key) {
     try { return $app.findFirstRecordByFilter("lms_settings", "key = {:k}", { k: key }).getString("value"); }
-    catch (_) { return ""; }
+    catch (_) { require(__hooks + "/maintenance.js").rethrow(_); return ""; }
   }
   function formatPhone(p) {
     p = String(p || "").replace(/[\s\-\(\)]/g, "");
@@ -39,7 +40,7 @@ routerAdd("POST", "/api/whatsapp/send-welcome", (e) => {
   }
   function resolveVars(jsonStr, ctx) {
     let vars;
-    try { vars = JSON.parse(jsonStr || "[]"); } catch (_) { return []; }
+    try { vars = JSON.parse(jsonStr || "[]"); } catch (_) { require(__hooks + "/maintenance.js").rethrow(_); return []; }
     if (!Array.isArray(vars) || !vars.length) return [];
     return vars.slice().sort((a, b) => (a.index || 0) - (b.index || 0))
                .map(v => String(ctx[v.name] || v.example || ""));
@@ -55,7 +56,7 @@ routerAdd("POST", "/api/whatsapp/send-welcome", (e) => {
         parameters: bodyParams.map(t => ({ type: "text", text: t }))
       }];
     }
-    return $http.send({
+    return require(__hooks + "/maintenance.js").send({
       url: `https://graph.facebook.com/${version}/${phoneId}/messages`,
       method: "POST",
       headers: { "Authorization": `Bearer ${token}`, "Content-Type": "application/json" },
@@ -80,12 +81,12 @@ routerAdd("POST", "/api/whatsapp/send-welcome", (e) => {
     tpl = $app.findFirstRecordByFilter("whatsapp_templates",
       "trigger_event = 'user_registration' && language_code = {:lc} && approval_status = 'approved' && is_active = true",
       { lc: langCode });
-  } catch (_) {}
+  } catch (_) { require(__hooks + "/maintenance.js").rethrow(_);}
   if (!tpl && langCode !== "en") {
     try {
       tpl = $app.findFirstRecordByFilter("whatsapp_templates",
         "trigger_event = 'user_registration' && language_code = 'en' && approval_status = 'approved' && is_active = true", {});
-    } catch (_) {}
+    } catch (_) { require(__hooks + "/maintenance.js").rethrow(_);}
   }
   if (!tpl) {
     $app.logger().warn("WhatsApp welcome: no approved template", "user", e.auth.id);
@@ -106,6 +107,7 @@ routerAdd("POST", "/api/whatsapp/send-welcome", (e) => {
   }
   $app.logger().warn("WhatsApp welcome failed", "user", e.auth.id, "status", res.statusCode, "body", res.raw);
   return e.json(200, { ok: false, reason: "send_failed" }); // Always 200 — don't block frontend
+  });
 });
 
 
@@ -113,10 +115,11 @@ routerAdd("POST", "/api/whatsapp/send-welcome", (e) => {
 // Fires automatically whenever an enrollment record is created.
 
 onRecordAfterCreateSuccess((e) => {
+  return require(__hooks + "/maintenance.js").event(e, function() {
   try {
     function getSetting(key) {
       try { return $app.findFirstRecordByFilter("lms_settings", "key = {:k}", { k: key }).getString("value"); }
-      catch (_) { return ""; }
+      catch (_) { require(__hooks + "/maintenance.js").rethrow(_); return ""; }
     }
     function formatPhone(p) {
       p = String(p || "").replace(/[\s\-\(\)]/g, "");
@@ -129,7 +132,7 @@ onRecordAfterCreateSuccess((e) => {
     }
     function resolveVars(jsonStr, ctx) {
       let vars;
-      try { vars = JSON.parse(jsonStr || "[]"); } catch (_) { return []; }
+      try { vars = JSON.parse(jsonStr || "[]"); } catch (_) { require(__hooks + "/maintenance.js").rethrow(_); return []; }
       if (!Array.isArray(vars) || !vars.length) return [];
       return vars.slice().sort((a, b) => (a.index || 0) - (b.index || 0))
                  .map(v => String(ctx[v.name] || v.example || ""));
@@ -145,7 +148,7 @@ onRecordAfterCreateSuccess((e) => {
           parameters: bodyParams.map(t => ({ type: "text", text: t }))
         }];
       }
-      return $http.send({
+      return require(__hooks + "/maintenance.js").send({
         url: `https://graph.facebook.com/${version}/${phoneId}/messages`,
         method: "POST",
         headers: { "Authorization": `Bearer ${token}`, "Content-Type": "application/json" },
@@ -167,7 +170,7 @@ onRecordAfterCreateSuccess((e) => {
     try {
       const pref = $app.findFirstRecordByFilter("notification_preferences", "user = {:u}", { u: userId });
       if (!pref.getBool("whatsapp_enabled")) { e.next(); return; }
-    } catch (_) {}
+    } catch (_) { require(__hooks + "/maintenance.js").rethrow(_);}
 
     const langMap  = { en: "en", ms: "ms", zh: "zh_CN" };
     const langCode = langMap[user.getString("language")] || "en";
@@ -177,12 +180,12 @@ onRecordAfterCreateSuccess((e) => {
       tpl = $app.findFirstRecordByFilter("whatsapp_templates",
         "trigger_event = 'course_enrollment' && language_code = {:lc} && approval_status = 'approved' && is_active = true",
         { lc: langCode });
-    } catch (_) {}
+    } catch (_) { require(__hooks + "/maintenance.js").rethrow(_);}
     if (!tpl && langCode !== "en") {
       try {
         tpl = $app.findFirstRecordByFilter("whatsapp_templates",
           "trigger_event = 'course_enrollment' && language_code = 'en' && approval_status = 'approved' && is_active = true", {});
-      } catch (_) {}
+      } catch (_) { require(__hooks + "/maintenance.js").rethrow(_);}
     }
     if (!tpl) { e.next(); return; }
 
@@ -193,7 +196,7 @@ onRecordAfterCreateSuccess((e) => {
       const langSuffix = user.getString("language");
       courseName = (langSuffix && langSuffix !== "en" ? course.getString("title_" + langSuffix) : "")
                    || course.getString("title_en") || "";
-    } catch (_) {}
+    } catch (_) { require(__hooks + "/maintenance.js").rethrow(_);}
 
     const ctx = {
       first_name:  firstName(user.getString("name")),
@@ -209,10 +212,11 @@ onRecordAfterCreateSuccess((e) => {
     } else {
       $app.logger().warn("WhatsApp enrolment failed", "user", userId, "status", res.statusCode, "body", res.raw);
     }
-  } catch (err) {
+  } catch (err) { require(__hooks + "/maintenance.js").rethrow(err);
     $app.logger().error("WhatsApp enrolment hook error", "error", String(err));
   }
   e.next();
+  });
 }, "enrollments");
 
 
@@ -221,6 +225,7 @@ onRecordAfterCreateSuccess((e) => {
 // that completed_at was set within the last 5 minutes.
 
 onRecordAfterUpdateSuccess((e) => {
+  return require(__hooks + "/maintenance.js").event(e, function() {
   try {
     if (!e.record.getBool("is_completed")) { e.next(); return; }
     const completedAtStr = e.record.getString("completed_at");
@@ -230,7 +235,7 @@ onRecordAfterUpdateSuccess((e) => {
 
     function getSetting(key) {
       try { return $app.findFirstRecordByFilter("lms_settings", "key = {:k}", { k: key }).getString("value"); }
-      catch (_) { return ""; }
+      catch (_) { require(__hooks + "/maintenance.js").rethrow(_); return ""; }
     }
     function formatPhone(p) {
       p = String(p || "").replace(/[\s\-\(\)]/g, "");
@@ -243,7 +248,7 @@ onRecordAfterUpdateSuccess((e) => {
     }
     function resolveVars(jsonStr, ctx) {
       let vars;
-      try { vars = JSON.parse(jsonStr || "[]"); } catch (_) { return []; }
+      try { vars = JSON.parse(jsonStr || "[]"); } catch (_) { require(__hooks + "/maintenance.js").rethrow(_); return []; }
       if (!Array.isArray(vars) || !vars.length) return [];
       return vars.slice().sort((a, b) => (a.index || 0) - (b.index || 0))
                  .map(v => String(ctx[v.name] || v.example || ""));
@@ -259,7 +264,7 @@ onRecordAfterUpdateSuccess((e) => {
           parameters: bodyParams.map(t => ({ type: "text", text: t }))
         }];
       }
-      return $http.send({
+      return require(__hooks + "/maintenance.js").send({
         url: `https://graph.facebook.com/${version}/${phoneId}/messages`,
         method: "POST",
         headers: { "Authorization": `Bearer ${token}`, "Content-Type": "application/json" },
@@ -280,7 +285,7 @@ onRecordAfterUpdateSuccess((e) => {
     try {
       const pref = $app.findFirstRecordByFilter("notification_preferences", "user = {:u}", { u: userId });
       if (!pref.getBool("whatsapp_enabled")) { e.next(); return; }
-    } catch (_) {}
+    } catch (_) { require(__hooks + "/maintenance.js").rethrow(_);}
 
     const langMap  = { en: "en", ms: "ms", zh: "zh_CN" };
     const langCode = langMap[user.getString("language")] || "en";
@@ -290,12 +295,12 @@ onRecordAfterUpdateSuccess((e) => {
       tpl = $app.findFirstRecordByFilter("whatsapp_templates",
         "trigger_event = 'course_completion' && language_code = {:lc} && approval_status = 'approved' && is_active = true",
         { lc: langCode });
-    } catch (_) {}
+    } catch (_) { require(__hooks + "/maintenance.js").rethrow(_);}
     if (!tpl && langCode !== "en") {
       try {
         tpl = $app.findFirstRecordByFilter("whatsapp_templates",
           "trigger_event = 'course_completion' && language_code = 'en' && approval_status = 'approved' && is_active = true", {});
-      } catch (_) {}
+      } catch (_) { require(__hooks + "/maintenance.js").rethrow(_);}
     }
     if (!tpl) { e.next(); return; }
 
@@ -306,7 +311,7 @@ onRecordAfterUpdateSuccess((e) => {
       const langSuffix = user.getString("language");
       courseName = (langSuffix && langSuffix !== "en" ? course.getString("title_" + langSuffix) : "")
                    || course.getString("title_en") || "";
-    } catch (_) {}
+    } catch (_) { require(__hooks + "/maintenance.js").rethrow(_);}
 
     const ctx = {
       first_name:      firstName(user.getString("name")),
@@ -323,10 +328,11 @@ onRecordAfterUpdateSuccess((e) => {
     } else {
       $app.logger().warn("WhatsApp completion failed", "user", userId, "status", res.statusCode, "body", res.raw);
     }
-  } catch (err) {
+  } catch (err) { require(__hooks + "/maintenance.js").rethrow(err);
     $app.logger().error("WhatsApp completion hook error", "error", String(err));
   }
   e.next();
+  });
 }, "enrollments");
 
 
@@ -335,13 +341,14 @@ onRecordAfterUpdateSuccess((e) => {
 // Sends to children who reached 6w, 3m, 6m, 9m, or 12m milestones this week.
 
 routerAdd("POST", "/api/whatsapp/send-milestone-reminders", (e) => {
+  return require(__hooks + "/maintenance.js").http(e, function() {
   if (!e.auth) return e.json(401, { error: "Unauthorized" });
   const role = e.auth.getString("role");
   if (role !== "admin" && role !== "superadmin") return e.json(403, { error: "Admin access required." });
 
   function getSetting(key) {
     try { return $app.findFirstRecordByFilter("lms_settings", "key = {:k}", { k: key }).getString("value"); }
-    catch (_) { return ""; }
+    catch (_) { require(__hooks + "/maintenance.js").rethrow(_); return ""; }
   }
   function formatPhone(p) {
     p = String(p || "").replace(/[\s\-\(\)]/g, "");
@@ -354,7 +361,7 @@ routerAdd("POST", "/api/whatsapp/send-milestone-reminders", (e) => {
   }
   function resolveVars(jsonStr, ctx) {
     let vars;
-    try { vars = JSON.parse(jsonStr || "[]"); } catch (_) { return []; }
+    try { vars = JSON.parse(jsonStr || "[]"); } catch (_) { require(__hooks + "/maintenance.js").rethrow(_); return []; }
     if (!Array.isArray(vars) || !vars.length) return [];
     return vars.slice().sort((a, b) => (a.index || 0) - (b.index || 0))
                .map(v => String(ctx[v.name] || v.example || ""));
@@ -370,7 +377,7 @@ routerAdd("POST", "/api/whatsapp/send-milestone-reminders", (e) => {
         parameters: bodyParams.map(t => ({ type: "text", text: t }))
       }];
     }
-    return $http.send({
+    return require(__hooks + "/maintenance.js").send({
       url: `https://graph.facebook.com/${version}/${phoneId}/messages`,
       method: "POST",
       headers: { "Authorization": `Bearer ${token}`, "Content-Type": "application/json" },
@@ -421,7 +428,7 @@ routerAdd("POST", "/api/whatsapp/send-milestone-reminders", (e) => {
           "child = {:c} && type = 'growth_reminder' && channel = 'whatsapp' && created >= {:ws}",
           { c: child.id, ws: windowStart });
         alreadySent = true;
-      } catch (_) {}
+      } catch (_) { require(__hooks + "/maintenance.js").rethrow(_);}
       if (alreadySent) { skipped++; continue; }
 
       const userId = child.getString("user");
@@ -432,7 +439,7 @@ routerAdd("POST", "/api/whatsapp/send-milestone-reminders", (e) => {
       try {
         const pref = $app.findFirstRecordByFilter("notification_preferences", "user = {:u}", { u: userId });
         if (!pref.getBool("whatsapp_enabled")) { skipped++; continue; }
-      } catch (_) {}
+      } catch (_) { require(__hooks + "/maintenance.js").rethrow(_);}
 
       const langMap  = { en: "en", ms: "ms", zh: "zh_CN" };
       const langCode = langMap[user.getString("language")] || "en";
@@ -442,12 +449,12 @@ routerAdd("POST", "/api/whatsapp/send-milestone-reminders", (e) => {
         tpl = $app.findFirstRecordByFilter("whatsapp_templates",
           "trigger_event = 'milestone_reminder' && language_code = {:lc} && approval_status = 'approved' && is_active = true",
           { lc: langCode });
-      } catch (_) {}
+      } catch (_) { require(__hooks + "/maintenance.js").rethrow(_);}
       if (!tpl && langCode !== "en") {
         try {
           tpl = $app.findFirstRecordByFilter("whatsapp_templates",
             "trigger_event = 'milestone_reminder' && language_code = 'en' && approval_status = 'approved' && is_active = true", {});
-        } catch (_) {}
+        } catch (_) { require(__hooks + "/maintenance.js").rethrow(_);}
       }
       if (!tpl) { skipped++; continue; }
 
@@ -479,7 +486,7 @@ routerAdd("POST", "/api/whatsapp/send-milestone-reminders", (e) => {
         qRec.set("phone",   phone);
         qRec.set("message", `Milestone reminder — ${ageLabel}`);
         qRec.set("sent_at", new Date().toISOString().replace("T", " ").slice(0, 23) + "Z");
-        $app.save(qRec);
+        require(__hooks + "/maintenance.js").save($app, qRec);
         sent++;
         results.push({ child: child.id, age: ageLabel, status: "sent" });
         $app.logger().info("WhatsApp milestone sent", "user", userId, "child", child.id, "age", ageLabel);
@@ -488,13 +495,14 @@ routerAdd("POST", "/api/whatsapp/send-milestone-reminders", (e) => {
         results.push({ child: child.id, age: ageLabel, status: "failed", code: res.statusCode });
         $app.logger().warn("WhatsApp milestone failed", "user", userId, "status", res.statusCode, "body", res.raw);
       }
-    } catch (err) {
+    } catch (err) { require(__hooks + "/maintenance.js").rethrow(err);
       failed++;
       $app.logger().error("WhatsApp milestone error", "child", child.id, "error", String(err));
     }
   }
 
   return e.json(200, { ok: true, checked: children.length, sent, skipped, failed, results });
+  });
 });
 
 
@@ -503,13 +511,14 @@ routerAdd("POST", "/api/whatsapp/send-milestone-reminders", (e) => {
 // Body: { trigger_event: "course_announcement"|"promotional_blast", context: { course_name: "..." } }
 
 routerAdd("POST", "/api/admin/whatsapp/meta-blast", (e) => {
+  return require(__hooks + "/maintenance.js").http(e, function() {
   if (!e.auth) return e.json(401, { error: "Unauthorized" });
   const role = e.auth.getString("role");
   if (role !== "admin" && role !== "superadmin") return e.json(403, { error: "Admin access required." });
 
   function getSetting(key) {
     try { return $app.findFirstRecordByFilter("lms_settings", "key = {:k}", { k: key }).getString("value"); }
-    catch (_) { return ""; }
+    catch (_) { require(__hooks + "/maintenance.js").rethrow(_); return ""; }
   }
   function formatPhone(p) {
     p = String(p || "").replace(/[\s\-\(\)]/g, "");
@@ -522,7 +531,7 @@ routerAdd("POST", "/api/admin/whatsapp/meta-blast", (e) => {
   }
   function resolveVars(jsonStr, ctx) {
     let vars;
-    try { vars = JSON.parse(jsonStr || "[]"); } catch (_) { return []; }
+    try { vars = JSON.parse(jsonStr || "[]"); } catch (_) { require(__hooks + "/maintenance.js").rethrow(_); return []; }
     if (!Array.isArray(vars) || !vars.length) return [];
     return vars.slice().sort((a, b) => (a.index || 0) - (b.index || 0))
                .map(v => String(ctx[v.name] || v.example || ""));
@@ -538,7 +547,7 @@ routerAdd("POST", "/api/admin/whatsapp/meta-blast", (e) => {
         parameters: bodyParams.map(t => ({ type: "text", text: t }))
       }];
     }
-    return $http.send({
+    return require(__hooks + "/maintenance.js").send({
       url: `https://graph.facebook.com/${version}/${phoneId}/messages`,
       method: "POST",
       headers: { "Authorization": `Bearer ${token}`, "Content-Type": "application/json" },
@@ -569,7 +578,7 @@ routerAdd("POST", "/api/admin/whatsapp/meta-blast", (e) => {
       try {
         const pref = $app.findFirstRecordByFilter("notification_preferences", "user = {:u}", { u: user.id });
         if (!pref.getBool("whatsapp_enabled")) { skipped++; continue; }
-      } catch (_) {}
+      } catch (_) { require(__hooks + "/maintenance.js").rethrow(_);}
 
       const langMap  = { en: "en", ms: "ms", zh: "zh_CN" };
       const langCode = langMap[user.getString("language")] || "en";
@@ -579,13 +588,13 @@ routerAdd("POST", "/api/admin/whatsapp/meta-blast", (e) => {
         tpl = $app.findFirstRecordByFilter("whatsapp_templates",
           "trigger_event = {:ev} && language_code = {:lc} && approval_status = 'approved' && is_active = true",
           { ev: triggerEvent, lc: langCode });
-      } catch (_) {}
+      } catch (_) { require(__hooks + "/maintenance.js").rethrow(_);}
       if (!tpl && langCode !== "en") {
         try {
           tpl = $app.findFirstRecordByFilter("whatsapp_templates",
             "trigger_event = {:ev} && language_code = 'en' && approval_status = 'approved' && is_active = true",
             { ev: triggerEvent });
-        } catch (_) {}
+        } catch (_) { require(__hooks + "/maintenance.js").rethrow(_);}
       }
       if (!tpl) { skipped++; continue; }
 
@@ -606,7 +615,7 @@ routerAdd("POST", "/api/admin/whatsapp/meta-blast", (e) => {
         results.push({ user: user.id, status: "failed", code: res.statusCode });
         $app.logger().warn("WhatsApp blast failed", "user", user.id, "status", res.statusCode);
       }
-    } catch (err) {
+    } catch (err) { require(__hooks + "/maintenance.js").rethrow(err);
       failed++;
       $app.logger().error("WhatsApp blast error", "user", user.id, "error", String(err));
     }
@@ -614,4 +623,5 @@ routerAdd("POST", "/api/admin/whatsapp/meta-blast", (e) => {
 
   $app.logger().info("WhatsApp meta blast done", "event", triggerEvent, "sent", sent, "failed", failed);
   return e.json(200, { ok: true, sent, skipped, failed, results });
+  });
 });

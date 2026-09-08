@@ -58,7 +58,7 @@ function _waOtpAuthenticatedUser(e) {
   try {
     if (e.auth.collection().name !== "users") return null;
     return $app.findRecordById("users", e.auth.id);
-  } catch (_) {
+  } catch (_) { require(__hooks + "/maintenance.js").rethrow(_);
     return null;
   }
 }
@@ -70,7 +70,7 @@ function _waOtpSetting(key) {
       "key = {:key}",
       { key: key }
     ).getString("value");
-  } catch (_) {
+  } catch (_) { require(__hooks + "/maintenance.js").rethrow(_);
     return "";
   }
 }
@@ -106,7 +106,7 @@ function _waOtpInvalidateOpenRecords(app, userId, phone) {
   for (var i = 0; i < records.length; i++) {
     records[i].set("is_used", true);
     records[i].set("status", _WA_OTP_STATUS_INVALIDATED);
-    app.save(records[i]);
+    require(__hooks + "/maintenance.js").save(app, records[i]);
   }
 }
 
@@ -117,10 +117,10 @@ function _waOtpMarkDeliveryFailed(recordId) {
       if (record.getString("status") === _WA_OTP_STATUS_PENDING) {
         record.set("status", _WA_OTP_STATUS_FAILED);
         record.set("is_used", true);
-        txApp.save(record);
+        require(__hooks + "/maintenance.js").save(txApp, record);
       }
     });
-  } catch (_) {
+  } catch (_) { require(__hooks + "/maintenance.js").rethrow(_);
     $app.logger().error("WhatsApp OTP delivery cleanup failed");
   }
 }
@@ -197,7 +197,7 @@ function _waOtpExpireStaleRecords(app, nowString) {
   for (var i = 0; i < records.length; i++) {
     records[i].set("status", _WA_OTP_STATUS_EXPIRED);
     records[i].set("is_used", true);
-    app.save(records[i]);
+    require(__hooks + "/maintenance.js").save(app, records[i]);
   }
 }
 
@@ -218,13 +218,14 @@ function _waOtpDeleteRetainedTerminalRecords(app, cutoff) {
   );
 
   for (var i = 0; i < records.length; i++) {
-    app.delete(records[i]);
+    require(__hooks + "/maintenance.js").remove(app, records[i]);
   }
 }
 
 // Hourly, first expire stale pending/active records, then retain terminal audit
 // metadata for seven days. Valid active OTPs are never deleted by this job.
 cronAdd("phone_verification_otp_cleanup", "23 * * * *", function() {
+  return require(__hooks + "/maintenance.js").background(function() {
   var _WA_OTP_RETENTION_MS = 7 * 24 * 60 * 60 * 1000;
   var _WA_OTP_CLEANUP_BATCH_SIZE = 500;
   var _WA_OTP_STATUS_PENDING = "pending";
@@ -266,7 +267,7 @@ cronAdd("phone_verification_otp_cleanup", "23 * * * *", function() {
     for (var i = 0; i < records.length; i++) {
       records[i].set("status", _WA_OTP_STATUS_EXPIRED);
       records[i].set("is_used", true);
-      app.save(records[i]);
+      require(__hooks + "/maintenance.js").save(app, records[i]);
     }
   }
 
@@ -287,7 +288,7 @@ cronAdd("phone_verification_otp_cleanup", "23 * * * *", function() {
     );
 
     for (var i = 0; i < records.length; i++) {
-      app.delete(records[i]);
+      require(__hooks + "/maintenance.js").remove(app, records[i]);
     }
   }
 
@@ -301,12 +302,14 @@ cronAdd("phone_verification_otp_cleanup", "23 * * * *", function() {
         _waOtpDate(now - _WA_OTP_RETENTION_MS)
       );
     });
-  } catch (_) {
+  } catch (_) { require(__hooks + "/maintenance.js").rethrow(_);
     $app.logger().error("WhatsApp OTP retention cleanup failed");
   }
+  });
 });
 
 routerAdd("POST", "/api/auth/request-whatsapp-otp", function(e) {
+  return require(__hooks + "/maintenance.js").http(e, function() {
   var _WA_OTP_LENGTH = 6;
   var _WA_OTP_TTL_MS = 10 * 60 * 1000;
   var _WA_OTP_RESEND_COOLDOWN_MS = 60 * 1000;
@@ -337,7 +340,7 @@ routerAdd("POST", "/api/auth/request-whatsapp-otp", function(e) {
     try {
       if (event.auth.collection().name !== "users") return null;
       return $app.findRecordById("users", event.auth.id);
-    } catch (_) {
+    } catch (_) { require(__hooks + "/maintenance.js").rethrow(_);
       return null;
     }
   }
@@ -349,7 +352,7 @@ routerAdd("POST", "/api/auth/request-whatsapp-otp", function(e) {
         "key = {:key}",
         { key: key }
       ).getString("value");
-    } catch (_) {
+    } catch (_) { require(__hooks + "/maintenance.js").rethrow(_);
       return "";
     }
   }
@@ -384,7 +387,7 @@ routerAdd("POST", "/api/auth/request-whatsapp-otp", function(e) {
     for (var i = 0; i < records.length; i++) {
       records[i].set("is_used", true);
       records[i].set("status", _WA_OTP_STATUS_INVALIDATED);
-      app.save(records[i]);
+      require(__hooks + "/maintenance.js").save(app, records[i]);
     }
   }
 
@@ -395,10 +398,10 @@ routerAdd("POST", "/api/auth/request-whatsapp-otp", function(e) {
         if (record.getString("status") === _WA_OTP_STATUS_PENDING) {
           record.set("status", _WA_OTP_STATUS_FAILED);
           record.set("is_used", true);
-          txApp.save(record);
+          require(__hooks + "/maintenance.js").save(txApp, record);
         }
       });
-    } catch (_) {
+    } catch (_) { require(__hooks + "/maintenance.js").rethrow(_);
       $app.logger().error("WhatsApp OTP delivery cleanup failed");
     }
   }
@@ -487,10 +490,10 @@ routerAdd("POST", "/api/auth/request-whatsapp-otp", function(e) {
       record.set("failed_attempts", 0);
       record.set("status", _WA_OTP_STATUS_PENDING);
       record.set("is_used", false);
-      txApp.save(record);
+      require(__hooks + "/maintenance.js").save(txApp, record);
       recordId = record.id;
     });
-  } catch (_) {
+  } catch (_) { require(__hooks + "/maintenance.js").rethrow(_);
     $app.logger().error("WhatsApp OTP request transaction failed");
     return e.json(500, {
       error: "verification_unavailable",
@@ -532,7 +535,7 @@ routerAdd("POST", "/api/auth/request-whatsapp-otp", function(e) {
 
   var response;
   try {
-    response = $http.send({
+    response = require(__hooks + "/maintenance.js").send({
       url: "https://graph.facebook.com/" + version + "/" + phoneId + "/messages",
       method: "POST",
       headers: {
@@ -542,7 +545,7 @@ routerAdd("POST", "/api/auth/request-whatsapp-otp", function(e) {
       body: JSON.stringify(payload),
       timeout: 15
     });
-  } catch (_) {
+  } catch (_) { require(__hooks + "/maintenance.js").rethrow(_);
     _waOtpMarkDeliveryFailed(recordId);
     $app.logger().warn("WhatsApp OTP delivery request failed");
     return e.json(503, {
@@ -567,9 +570,9 @@ routerAdd("POST", "/api/auth/request-whatsapp-otp", function(e) {
         throw new Error("OTP request is no longer pending");
       }
       record.set("status", _WA_OTP_STATUS_ACTIVE);
-      txApp.save(record);
+      require(__hooks + "/maintenance.js").save(txApp, record);
     });
-  } catch (_) {
+  } catch (_) { require(__hooks + "/maintenance.js").rethrow(_);
     _waOtpMarkDeliveryFailed(recordId);
     $app.logger().error("WhatsApp OTP activation failed after delivery");
     return e.json(503, {
@@ -582,9 +585,11 @@ routerAdd("POST", "/api/auth/request-whatsapp-otp", function(e) {
     ok: true,
     message: "OTP sent to your WhatsApp number."
   });
+  });
 });
 
 routerAdd("POST", "/api/auth/verify-whatsapp-otp", function(e) {
+  return require(__hooks + "/maintenance.js").http(e, function() {
   var _WA_OTP_MAX_FAILURES_PER_CODE = 5;
   var _WA_OTP_MAX_FAILURES_PER_HOUR = 10;
   var _WA_OTP_STATUS_ACTIVE = "active";
@@ -612,7 +617,7 @@ routerAdd("POST", "/api/auth/verify-whatsapp-otp", function(e) {
     try {
       if (event.auth.collection().name !== "users") return null;
       return $app.findRecordById("users", event.auth.id);
-    } catch (_) {
+    } catch (_) { require(__hooks + "/maintenance.js").rethrow(_);
       return null;
     }
   }
@@ -715,7 +720,7 @@ routerAdd("POST", "/api/auth/verify-whatsapp-otp", function(e) {
       )) {
         record.set("status", _WA_OTP_STATUS_LOCKED);
         record.set("is_used", true);
-        txApp.save(record);
+        require(__hooks + "/maintenance.js").save(txApp, record);
         outcome = "throttled";
         return;
       }
@@ -723,7 +728,7 @@ routerAdd("POST", "/api/auth/verify-whatsapp-otp", function(e) {
       if (_waOtpIsExpired(now, record.getString("expires_at"))) {
         record.set("status", _WA_OTP_STATUS_EXPIRED);
         record.set("is_used", true);
-        txApp.save(record);
+        require(__hooks + "/maintenance.js").save(txApp, record);
         return;
       }
 
@@ -742,7 +747,7 @@ routerAdd("POST", "/api/auth/verify-whatsapp-otp", function(e) {
           record.set("is_used", true);
           outcome = "throttled";
         }
-        txApp.save(record);
+        require(__hooks + "/maintenance.js").save(txApp, record);
         return;
       }
 
@@ -757,7 +762,7 @@ routerAdd("POST", "/api/auth/verify-whatsapp-otp", function(e) {
       if (existingOwners.length) {
         record.set("status", _WA_OTP_STATUS_USED);
         record.set("is_used", true);
-        txApp.save(record);
+        require(__hooks + "/maintenance.js").save(txApp, record);
         return;
       }
 
@@ -765,15 +770,15 @@ routerAdd("POST", "/api/auth/verify-whatsapp-otp", function(e) {
       record.set("status", _WA_OTP_STATUS_USED);
       record.set("is_used", true);
       record.set("last_attempt_at", nowString);
-      txApp.save(record);
+      require(__hooks + "/maintenance.js").save(txApp, record);
 
       authenticatedUser.set("phone", phone);
       authenticatedUser.set("phone_verified", true);
       authenticatedUser.set("phone_verified_at", nowString);
-      txApp.save(authenticatedUser);
+      require(__hooks + "/maintenance.js").save(txApp, authenticatedUser);
       outcome = "verified";
     });
-  } catch (_) {
+  } catch (_) { require(__hooks + "/maintenance.js").rethrow(_);
     $app.logger().error("WhatsApp OTP verification transaction failed");
     return e.json(500, {
       error: "verification_unavailable",
@@ -799,6 +804,7 @@ routerAdd("POST", "/api/auth/verify-whatsapp-otp", function(e) {
   return e.json(400, {
     error: "verification_failed",
     message: "The verification code is invalid or expired. Please request a new code."
+  });
   });
 });
 

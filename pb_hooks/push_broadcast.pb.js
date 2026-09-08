@@ -60,7 +60,7 @@ var resolveSegmentUserIds = function(segConfig) {
       for (var li = 0; li < langRows.length; li++) add(langRows[li].id);
     }
 
-  } catch (err) {
+  } catch (err) { require(__hooks + "/maintenance.js").rethrow(err);
     $app.logger().error("push_broadcast resolveSegment", "type", segConfig.type, "err", String(err));
   }
 
@@ -81,7 +81,7 @@ var dispatchBroadcast = function(appId, apiKey, record) {
   var segConfig = null;
   var segStr = record.getString("segment_config");
   if (segStr) {
-    try { segConfig = JSON.parse(segStr); } catch (_) {}
+    try { segConfig = JSON.parse(segStr); } catch (_) { require(__hooks + "/maintenance.js").rethrow(_);}
   }
 
   var payload;
@@ -92,7 +92,7 @@ var dispatchBroadcast = function(appId, apiKey, record) {
     if (!userIds || userIds.length === 0) {
       record.set("status", "sent");
       record.set("recipient_count", 0);
-      try { $app.save(record); } catch (_) {}
+      try { require(__hooks + "/maintenance.js").save($app, record); } catch (_) { require(__hooks + "/maintenance.js").rethrow(_);}
       $app.logger().info("push_dispatch: segment matched 0 users, skipped OneSignal", "id", record.id);
       return { ok: true, recipients: 0, skipped: true };
     }
@@ -118,7 +118,7 @@ var dispatchBroadcast = function(appId, apiKey, record) {
     };
   }
 
-  var res = $http.send({
+  var res = require(__hooks + "/maintenance.js").send({
     url:    "https://onesignal.com/api/v1/notifications",
     method: "POST",
     headers: { "Content-Type": "application/json", "Authorization": "Basic " + apiKey },
@@ -133,7 +133,7 @@ var dispatchBroadcast = function(appId, apiKey, record) {
   record.set("status", ok ? "sent" : "failed");
   record.set("recipient_count", recipients);
   if (osId) record.set("onesignal_id", osId);
-  try { $app.save(record); } catch (se) {
+  try { require(__hooks + "/maintenance.js").save($app, record); } catch (se) { require(__hooks + "/maintenance.js").rethrow(se);
     $app.logger().error("push_dispatch: save failed", "id", record.id, "err", String(se));
   }
 
@@ -147,6 +147,7 @@ var dispatchBroadcast = function(appId, apiKey, record) {
 // Body: { title, message, url?, target?, segment_config?, scheduled_at? }
 // ─────────────────────────────────────────────────────────────────────────────
 routerAdd("POST", "/api/admin/push-broadcast", function(e) {
+  return require(__hooks + "/maintenance.js").http(e, function() {
 
   if (!e.auth) return e.json(401, { error: "Unauthorized" });
   var role = e.auth.getString("role");
@@ -167,11 +168,11 @@ routerAdd("POST", "/api/admin/push-broadcast", function(e) {
   try {
     appId  = $app.findFirstRecordByFilter("lms_settings", "key = {:k}", { k: "onesignal_app_id"  }).getString("value");
     apiKey = $app.findFirstRecordByFilter("lms_settings", "key = {:k}", { k: "onesignal_api_key" }).getString("value");
-  } catch (_) { return e.json(500, { error: "OneSignal credentials not configured" }); }
+  } catch (_) { require(__hooks + "/maintenance.js").rethrow(_); return e.json(500, { error: "OneSignal credentials not configured" }); }
   if (!appId || !apiKey) return e.json(500, { error: "OneSignal credentials are empty" });
 
   var appURL = "";
-  try { appURL = $app.settings().meta.appURL || ""; } catch (_) {}
+  try { appURL = $app.settings().meta.appURL || ""; } catch (_) { require(__hooks + "/maintenance.js").rethrow(_);}
   var notifUrl = url || (appURL + "/content");
 
   // Create the log record
@@ -185,14 +186,14 @@ routerAdd("POST", "/api/admin/push-broadcast", function(e) {
 
   // Persist segment config as JSON string
   if (segConfigRaw && typeof segConfigRaw === "object") {
-    try { record.set("segment_config", JSON.stringify(segConfigRaw)); } catch (_) {}
+    try { record.set("segment_config", JSON.stringify(segConfigRaw)); } catch (_) { require(__hooks + "/maintenance.js").rethrow(_);}
   }
 
   // If scheduled → save as pending and return
   if (scheduledAt) {
     record.set("status",       "pending");
     record.set("scheduled_at", scheduledAt);
-    $app.save(record);
+    require(__hooks + "/maintenance.js").save($app, record);
     $app.logger().info("push_broadcast: scheduled", "at", scheduledAt, "title", title);
     return e.json(200, { ok: true, scheduled: true, scheduled_at: scheduledAt });
   }
@@ -203,6 +204,7 @@ routerAdd("POST", "/api/admin/push-broadcast", function(e) {
     return e.json(500, { error: "OneSignal rejected the request", status: result.statusCode });
   }
   return e.json(200, { ok: true, recipients: result.recipients, onesignal_id: result.onesignal_id });
+  });
 });
 
 
@@ -211,6 +213,7 @@ routerAdd("POST", "/api/admin/push-broadcast", function(e) {
 // Body: { id }
 // ─────────────────────────────────────────────────────────────────────────────
 routerAdd("POST", "/api/admin/push-broadcast/cancel", function(e) {
+  return require(__hooks + "/maintenance.js").http(e, function() {
 
   if (!e.auth) return e.json(401, { error: "Unauthorized" });
   var role = e.auth.getString("role");
@@ -222,16 +225,17 @@ routerAdd("POST", "/api/admin/push-broadcast/cancel", function(e) {
 
   var broadcast;
   try { broadcast = $app.findRecordById("push_broadcasts", id); }
-  catch (_) { return e.json(404, { error: "Broadcast not found" }); }
+  catch (_) { require(__hooks + "/maintenance.js").rethrow(_); return e.json(404, { error: "Broadcast not found" }); }
 
   if (broadcast.getString("status") !== "pending") {
     return e.json(400, { error: "Only pending broadcasts can be cancelled" });
   }
 
   broadcast.set("status", "cancelled");
-  $app.save(broadcast);
+  require(__hooks + "/maintenance.js").save($app, broadcast);
   $app.logger().info("push_broadcast: cancelled", "id", id);
   return e.json(200, { ok: true });
+  });
 });
 
 
@@ -239,6 +243,7 @@ routerAdd("POST", "/api/admin/push-broadcast/cancel", function(e) {
 // Cron: dispatch pending scheduled broadcasts (runs every 5 minutes)
 // ─────────────────────────────────────────────────────────────────────────────
 cronAdd("push_broadcast_scheduler", "*/5 * * * *", function() {
+  return require(__hooks + "/maintenance.js").background(function() {
   var now = new Date();
   var pad = function(n) { return String(n).padStart(2, "0"); };
   var nowStr = now.getFullYear() + "-" + pad(now.getMonth()+1) + "-" + pad(now.getDate())
@@ -251,7 +256,7 @@ cronAdd("push_broadcast_scheduler", "*/5 * * * *", function() {
       "status = 'pending' && scheduled_at != '' && scheduled_at <= {:now}",
       "", 0, 0, { now: nowStr }
     );
-  } catch (_) { return; }
+  } catch (_) { require(__hooks + "/maintenance.js").rethrow(_); return; }
 
   if (!pending || pending.length === 0) return;
 
@@ -259,7 +264,7 @@ cronAdd("push_broadcast_scheduler", "*/5 * * * *", function() {
   try {
     appId  = $app.findFirstRecordByFilter("lms_settings", "key = {:k}", { k: "onesignal_app_id"  }).getString("value");
     apiKey = $app.findFirstRecordByFilter("lms_settings", "key = {:k}", { k: "onesignal_api_key" }).getString("value");
-  } catch (_) {
+  } catch (_) { require(__hooks + "/maintenance.js").rethrow(_);
     $app.logger().error("push_scheduler: OneSignal credentials missing");
     return;
   }
@@ -268,4 +273,5 @@ cronAdd("push_broadcast_scheduler", "*/5 * * * *", function() {
     var result = dispatchBroadcast(appId, apiKey, pending[pi]);
     $app.logger().info("push_scheduler: dispatched", "id", pending[pi].id, "recipients", result.recipients);
   }
+  });
 });

@@ -6,6 +6,7 @@
 // ── User chat endpoint ────────────────────────────────────────────────────────
 
 routerAdd("POST", "/api/chat/ask", (e) => {
+  return require(__hooks + "/maintenance.js").http(e, function() {
   if (!e.auth) return e.json(401, { error: "Unauthorized" });
 
   function getAISettings() {
@@ -15,7 +16,7 @@ routerAdd("POST", "/api/chat/ask", (e) => {
         key:   r.getString("gemini_key"),
         model: r.getString("model_id") || "gemini-3.5-flash-lite",
       };
-    } catch (err) {
+    } catch (err) { require(__hooks + "/maintenance.js").rethrow(err);
       $app.logger().error("getAISettings failed", "err", String(err));
       return { key: "", model: "gemini-3.5-flash-lite" };
     }
@@ -61,14 +62,14 @@ routerAdd("POST", "/api/chat/ask", (e) => {
   var modelId = settings.model;
   var res;
   try {
-    res = $http.send({
+    res = require(__hooks + "/maintenance.js").send({
       url:     "https://generativelanguage.googleapis.com/v1beta/models/" + modelId + ":generateContent?key=" + settings.key,
       method:  "POST",
       headers: { "Content-Type": "application/json" },
       body:    JSON.stringify(payload),
       timeout: 30,
     });
-  } catch (httpErr) {
+  } catch (httpErr) { require(__hooks + "/maintenance.js").rethrow(httpErr);
     $app.logger().error("Gemini HTTP send failed", "err", String(httpErr));
     return e.json(500, {
       error:   "http_error",
@@ -89,13 +90,14 @@ routerAdd("POST", "/api/chat/ask", (e) => {
   try {
     var answer = res.json.candidates[0].content.parts[0].text;
     return e.json(200, { answer: answer });
-  } catch (parseErr) {
+  } catch (parseErr) { require(__hooks + "/maintenance.js").rethrow(parseErr);
     $app.logger().error("Gemini parse failed", "raw", res.raw, "err", String(parseErr));
     return e.json(500, {
       error:   "parse_failed",
       message: "Unexpected AI response: " + String(parseErr),
     });
   }
+  });
 });
 
 // ── Admin status check ────────────────────────────────────────────────────────
@@ -111,7 +113,7 @@ routerAdd("GET", "/api/admin/ai/config", (e) => {
     var model  = r.getString("model_id") || "gemini-3.5-flash-lite";
     var masked = val ? val.slice(0, 8) + "..." : "";
     return e.json(200, { configured: !!val, masked: masked, model: model });
-  } catch (err) {
+  } catch (err) { require(__hooks + "/maintenance.js").rethrow(err);
     $app.logger().error("ai config status failed", "err", String(err));
     return e.json(200, { configured: false, masked: "", model: "" });
   }

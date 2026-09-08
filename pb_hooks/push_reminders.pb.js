@@ -1,11 +1,12 @@
 // Daily push reminder — runs at 9 AM Malaysia time (01:00 UTC)
 cronAdd("push_reminder_daily", "0 1 * * *", () => {
+  return require(__hooks + "/maintenance.js").background(function() {
   // ── 1. Load OneSignal credentials from lms_settings ──────────────────────
   let appId, apiKey;
   try {
     appId  = $app.findFirstRecordByFilter("lms_settings", "key = {:k}", { k: "onesignal_app_id"  }).getString("value");
     apiKey = $app.findFirstRecordByFilter("lms_settings", "key = {:k}", { k: "onesignal_api_key" }).getString("value");
-  } catch (_) {
+  } catch (_) { require(__hooks + "/maintenance.js").rethrow(_);
     $app.logger().error("push_reminders: OneSignal settings not found in lms_settings");
     return;
   }
@@ -46,7 +47,7 @@ cronAdd("push_reminder_daily", "0 1 * * *", () => {
         { u: uid, c: cutoff }
       );
       // Has recent activity — skip
-    } catch (_) {
+    } catch (_) { require(__hooks + "/maintenance.js").rethrow(_);
       inactiveIds.push(uid);
     }
   }
@@ -60,10 +61,10 @@ cronAdd("push_reminder_daily", "0 1 * * *", () => {
 
   // ── 5. Get app URL from PocketBase meta settings ──────────────────────────
   let appURL = "";
-  try { appURL = $app.settings().meta.appURL || ""; } catch (_) {}
+  try { appURL = $app.settings().meta.appURL || ""; } catch (_) { require(__hooks + "/maintenance.js").rethrow(_);}
 
   // ── 6. Send push notification via OneSignal REST API ─────────────────────
-  const res = $http.send({
+  const res = require(__hooks + "/maintenance.js").send({
     url: "https://onesignal.com/api/v1/notifications",
     method: "POST",
     headers: {
@@ -98,4 +99,5 @@ cronAdd("push_reminder_daily", "0 1 * * *", () => {
   } else {
     $app.logger().info("push_reminders: notifications sent successfully");
   }
+  });
 });

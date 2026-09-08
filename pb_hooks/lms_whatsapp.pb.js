@@ -20,11 +20,12 @@
  */
 
 routerAdd("POST", "/api/lms/send-reminders", (e) => {
+  return require(__hooks + "/maintenance.js").http(e, function() {
   function getSetting(key) {
     try {
       const rec = $app.findFirstRecordByFilter("lms_settings", "key = {:k}", { k: key });
       return rec.getString("value");
-    } catch (_) { return ""; }
+    } catch (_) { require(__hooks + "/maintenance.js").rethrow(_); return ""; }
   }
   function formatPhone(p) {
     p = String(p || "").replace(/[\s\-\(\)]/g, "");
@@ -37,7 +38,7 @@ routerAdd("POST", "/api/lms/send-reminders", (e) => {
   }
   function resolveVars(jsonStr, ctx) {
     let vars;
-    try { vars = JSON.parse(jsonStr || "[]"); } catch (_) { return []; }
+    try { vars = JSON.parse(jsonStr || "[]"); } catch (_) { require(__hooks + "/maintenance.js").rethrow(_); return []; }
     if (!Array.isArray(vars) || !vars.length) return [];
     return vars.slice().sort((a, b) => (a.index || 0) - (b.index || 0))
                .map(v => String(ctx[v.name] || v.example || ""));
@@ -53,7 +54,7 @@ routerAdd("POST", "/api/lms/send-reminders", (e) => {
         parameters: bodyParams.map(t => ({ type: "text", text: t }))
       }];
     }
-    return $http.send({
+    return require(__hooks + "/maintenance.js").send({
       url: `https://graph.facebook.com/${version}/${phoneId}/messages`,
       method: "POST",
       headers: { "Authorization": `Bearer ${token}`, "Content-Type": "application/json" },
@@ -87,7 +88,7 @@ routerAdd("POST", "/api/lms/send-reminders", (e) => {
     try {
       const userId = enr.getString("user");
       let user;
-      try { user = $app.findRecordById("users", userId); } catch (_) { skipped++; continue; }
+      try { user = $app.findRecordById("users", userId); } catch (_) { require(__hooks + "/maintenance.js").rethrow(_); skipped++; continue; }
 
       const phone = user.getString("phone");
       if (!phone) { skipped++; continue; }
@@ -96,7 +97,7 @@ routerAdd("POST", "/api/lms/send-reminders", (e) => {
       try {
         const pref = $app.findFirstRecordByFilter("notification_preferences", "user = {:u}", { u: userId });
         if (!pref.getBool("whatsapp_enabled")) { skipped++; continue; }
-      } catch (_) {}
+      } catch (_) { require(__hooks + "/maintenance.js").rethrow(_);}
 
       const langMap  = { en: "en", ms: "ms", zh: "zh_CN" };
       const langCode = langMap[user.getString("language")] || "en";
@@ -106,12 +107,12 @@ routerAdd("POST", "/api/lms/send-reminders", (e) => {
         tpl = $app.findFirstRecordByFilter("whatsapp_templates",
           "trigger_event = 'course_reminder' && language_code = {:lc} && approval_status = 'approved' && is_active = true",
           { lc: langCode });
-      } catch (_) {}
+      } catch (_) { require(__hooks + "/maintenance.js").rethrow(_);}
       if (!tpl && langCode !== "en") {
         try {
           tpl = $app.findFirstRecordByFilter("whatsapp_templates",
             "trigger_event = 'course_reminder' && language_code = 'en' && approval_status = 'approved' && is_active = true", {});
-        } catch (_) {}
+        } catch (_) { require(__hooks + "/maintenance.js").rethrow(_);}
       }
       if (!tpl) { skipped++; continue; }
 
@@ -122,13 +123,13 @@ routerAdd("POST", "/api/lms/send-reminders", (e) => {
         const lang = user.getString("language");
         courseName = (lang && lang !== "en" ? course.getString("title_" + lang) : "")
                      || course.getString("title_en") || courseName;
-      } catch (_) {}
+      } catch (_) { require(__hooks + "/maintenance.js").rethrow(_);}
 
       let childName = "your little one";
       try {
         const kids = $app.findRecordsByFilter("children", "user = {:u}", "-created", 1, 0, { u: userId });
         if (kids.length > 0) childName = kids[0].getString("name") || childName;
-      } catch (_) {}
+      } catch (_) { require(__hooks + "/maintenance.js").rethrow(_);}
 
       const progress = Math.round(enr.getFloat("progress_percent"));
 
@@ -152,20 +153,21 @@ routerAdd("POST", "/api/lms/send-reminders", (e) => {
         results.push({ user: userId, status: "failed", code: res.statusCode });
         $app.logger().warn("LMS course reminder failed", "user", userId, "status", res.statusCode, "body", res.raw);
       }
-    } catch (err) {
+    } catch (err) { require(__hooks + "/maintenance.js").rethrow(err);
       failed++;
       $app.logger().error("LMS course reminder error", "error", String(err));
     }
   }
 
   return e.json(200, { ok: true, checked: enrollments.length, sent, skipped, failed, cutoff_date: cutoff, results });
+  });
 });
 
 
 routerAdd("GET", "/api/lms/reminder-status", (e) => {
   function hasSetting(key) {
     try { $app.findFirstRecordByFilter("lms_settings", "key = {:k}", { k: key }); return true; }
-    catch (_) { return false; }
+    catch (_) { require(__hooks + "/maintenance.js").rethrow(_); return false; }
   }
   return e.json(200, {
     configured: {
