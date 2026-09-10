@@ -45,6 +45,7 @@ class Provider(BaseHTTPRequestHandler):
     after_send = False
     unexpected = 0
     error_response = False
+    rate_limit_seconds = 0
 
     def log_message(self, *_):
         pass
@@ -66,8 +67,10 @@ class Provider(BaseHTTPRequestHandler):
         response = {"messages": [{"id": "stub-message"}], "id": "stub-push",
                     "recipients": 1, "candidates": [{"content": {"parts": [{"text": "Stub answer"}]}}]}
         data = json.dumps(response).encode()
-        self.send_response(502 if self.error_response else 200)
+        self.send_response(429 if self.rate_limit_seconds else 502 if self.error_response else 200)
         self.send_header("Content-Type", "application/json")
+        if self.rate_limit_seconds:
+            self.send_header("Retry-After", str(self.rate_limit_seconds))
         self.send_header("Content-Length", str(len(data)))
         self.end_headers()
         self.wfile.write(data)
@@ -169,6 +172,17 @@ class Runtime:
       $http.send({url: PAUSE_URL, method: 'POST', body: '{}', timeout: 20});
     }""".replace("PAUSE_URL", json.dumps(self.stub + "/pause")), 1)
         path.write_text(source)
+        push_path = self.hooks / "push_broadcast.js"
+        push_source = push_path.read_text()
+        push_source = push_source.replace(
+            "function finalizeBroadcast(app, maintenance, id, status, recipients, onesignalId) {\n  try {",
+            """function finalizeBroadcast(app, maintenance, id, status, recipients, onesignalId) {
+  if ($app.store().get('test.pushFinalizeFailure')) {
+    $app.store().remove('test.pushFinalizeFailure');
+    throw new Error('synthetic push finalize failure');
+  }
+  try {""", 1)
+        push_path.write_text(push_source)
         (self.hooks / "zz_test_only.pb.js").write_text("""
 // Disposable loopback fixture only. Never copied into project pb_hooks.
 onMailerSend(function(e) {
@@ -186,6 +200,7 @@ routerAdd('POST', '/__test/control', function(e) {
   if (body.afterCheck !== undefined) $app.store().set('test.afterCheck', body.afterCheck);
   if (body.holdKind !== undefined) $app.store().set('test.holdKind', body.holdKind);
   if (body.mailPause !== undefined) $app.store().set('test.mailPause', body.mailPause);
+  if (body.pushFinalizeFailure !== undefined) $app.store().set('test.pushFinalizeFailure', body.pushFinalizeFailure);
   if (body.flushLogs) $app.logger().handler().writeAll();
   if (body.cron) {
     const jobs = $app.cron().jobs();
@@ -374,6 +389,7 @@ def main():
 
 def migration_acceptance(r):
     filename = "1788676088_seed_maintenance_mode_setting_bd01.js"
+    broadcast_filename = "1789069155_harden_push_broadcast_idempotency_8a31.js"
     state = lambda: r.sql("SELECT value FROM lms_settings WHERE key='maintenance_mode'")
     history = lambda: r.sql("SELECT file FROM _migrations WHERE file=?", (filename,))
     check(state() == [("false",)] and len(history()) == 1, "migration fresh UP seeds one false")
@@ -383,12 +399,23 @@ def migration_acceptance(r):
     r.command("migrate", "up")
     check(state() == [("true",)], "migration already-recorded filename preserves true")
     r.sql("INSERT INTO maintenance_inflight (id,kind,admitted_at) VALUES ('stalefixture001','http','2000-01-01 00:00:00Z')")
-    r.command("migrate", "down", "2", input="y\n")
+    broadcast_columns = [row[1] for row in r.sql("PRAGMA table_info(push_broadcasts)")]
+    check(all(name in broadcast_columns for name in ["idempotency_key", "request_hash",
+          "dispatch_started_at", "next_attempt_at", "dispatch_attempts"]),
+          "push broadcast idempotency fields migrated")
+    check(len(r.sql("SELECT name FROM sqlite_master WHERE type='index' AND name=?",
+                    ("idx_push_broadcast_idempotency",))) == 1,
+          "push broadcast idempotency unique index migrated")
+    check(len(r.sql("SELECT file FROM _migrations WHERE file=?", (broadcast_filename,))) == 1,
+          "push broadcast idempotency migration recorded")
+    r.command("migrate", "down", "3", input="y\n")
     check(state() == [("true",)] and not history(), "migration DOWN preserves operator state")
     check(len(r.sql("SELECT id FROM maintenance_inflight")) == 1, "coordination DOWN preserves stale record and schema")
     r.command("migrate", "up")
     check(state() == [("true",)] and len(history()) == 1, "migration reapply preserves existing true")
     check(len(r.sql("SELECT id FROM maintenance_inflight")) == 1, "coordination reapply preserves existing operation")
+    check(len(r.sql("SELECT file FROM _migrations WHERE file=?", (broadcast_filename,))) == 1,
+          "push broadcast idempotency migration reapplied")
     r.sql("DELETE FROM maintenance_inflight WHERE id='stalefixture001'")  # synthetic, no process was ever admitted
     r.sql("UPDATE lms_settings SET value='false' WHERE key='maintenance_mode'")
 
@@ -551,12 +578,94 @@ def off_acceptance(r):
     before = len(Provider.calls)
     response = r.request("POST", "/api/admin/push-broadcast", {"title": "Local immediate empty segment",
                          "message": "Local immediate message", "target": "segment",
+                         "idempotency_key": "10000000-0000-4000-8000-000000000001",
                          "segment_config": {"type": "course_enrolled", "courseId": "missing-course"}}, r.admin_token)
     status(response, 200, "OFF immediate push resolves CommonJS dispatch helper")
     check(response[1].get("recipients") == 0 and len(Provider.calls) == before,
           "OFF immediate empty segment records success without provider call")
+    push_body = {"title": "Local idempotent immediate", "message": "Local idempotent message",
+                 "target": "all", "idempotency_key": "10000000-0000-4000-8000-000000000003"}
+    before = len(Provider.calls)
+    first = r.request("POST", "/api/admin/push-broadcast", push_body, r.admin_token)
+    replay = r.request("POST", "/api/admin/push-broadcast", push_body, r.admin_token)
+    status(first, 200, "OFF idempotent immediate first request")
+    status(replay, 200, "OFF idempotent immediate replay")
+    check(first[1].get("id") == replay[1].get("id") and len(Provider.calls) == before + 1,
+          "OFF same idempotency key creates one record and one provider call")
+    concurrent_body = {"title": "Local concurrent immediate", "message": "One concurrent send",
+                       "target": "all", "idempotency_key": "10000000-0000-4000-8000-000000000006"}
+    before = len(Provider.calls)
+    Provider.pause_entered.clear()
+    Provider.pause_release.clear()
+    Provider.after_send = True
+    with concurrent.futures.ThreadPoolExecutor(max_workers=6) as pool:
+        first_future = pool.submit(r.request, "POST", "/api/admin/push-broadcast",
+                                   concurrent_body, r.admin_token)
+        check(Provider.pause_entered.wait(5), "OFF concurrent immediate provider call paused")
+        duplicate_futures = [pool.submit(r.request, "POST", "/api/admin/push-broadcast",
+                                         concurrent_body, r.admin_token) for _ in range(5)]
+        duplicate_results = [future.result() for future in duplicate_futures]
+        Provider.pause_release.set()
+        concurrent_first = first_future.result()
+    Provider.after_send = False
+    check(concurrent_first[0] == 200 and all(result[0] == 202 for result in duplicate_results) and
+          len(Provider.calls) == before + 1,
+          "OFF concurrent idempotent requests produce one provider call")
+    uncertain_body = {"title": "Local uncertain immediate", "message": "Retry safely",
+                      "target": "all", "idempotency_key": "10000000-0000-4000-8000-000000000005"}
+    r.admin("POST", "/__test/control", {"pushFinalizeFailure": True})
+    before = len(Provider.calls)
+    uncertain = r.request("POST", "/api/admin/push-broadcast", uncertain_body, r.admin_token)
+    check(uncertain[0] >= 400, "OFF provider success plus bookkeeping failure is observable")
+    uncertain_record = next(x for x in r.rows("push_broadcasts")
+                            if x["idempotency_key"] == uncertain_body["idempotency_key"])
+    check(uncertain_record["status"] == "processing" and
+          uncertain_record["dispatch_attempts"] == 1 and len(Provider.calls) == before + 1,
+          "OFF uncertain provider result remains retryable with durable claim")
+    r.sql("UPDATE push_broadcasts SET dispatch_started_at='2020-01-01 00:00:00Z' WHERE id=?",
+          (uncertain_record["id"],))
+    r.admin("POST", "/__test/control", {"cron": "push_broadcast_scheduler"})
+    recovered = next(x for x in r.rows("push_broadcasts") if x["id"] == uncertain_record["id"])
+    retry_payloads = Provider.calls[before:]
+    check(recovered["status"] == "sent" and recovered["dispatch_attempts"] == 2 and
+          len(retry_payloads) == 2 and
+          all(p.get("idempotency_key") == uncertain_body["idempotency_key"] for p in retry_payloads),
+          "OFF bookkeeping recovery reuses one provider idempotency key")
+    limited_body = {"title": "Local rate-limited immediate", "message": "Honor provider delay",
+                    "target": "all", "idempotency_key": "10000000-0000-4000-8000-000000000007"}
+    Provider.rate_limit_seconds = 600
+    before = len(Provider.calls)
+    limited = r.request("POST", "/api/admin/push-broadcast", limited_body, r.admin_token)
+    status(limited, 202, "OFF rate-limited broadcast remains queued")
+    limited_record = next(x for x in r.rows("push_broadcasts")
+                          if x["idempotency_key"] == limited_body["idempotency_key"])
+    check(limited_record["status"] == "processing" and limited_record["next_attempt_at"] and
+          len(Provider.calls) == before + 1, "OFF Retry-After persisted before returning")
+    r.admin("POST", "/__test/control", {"cron": "push_broadcast_scheduler"})
+    check(len(Provider.calls) == before + 1, "OFF scheduler honors future Retry-After")
+    Provider.rate_limit_seconds = 0
+    r.sql("UPDATE push_broadcasts SET next_attempt_at='2020-01-01 00:00:00Z' WHERE id=?",
+          (limited_record["id"],))
+    r.admin("POST", "/__test/control", {"cron": "push_broadcast_scheduler"})
+    limited_after = next(x for x in r.rows("push_broadcasts") if x["id"] == limited_record["id"])
+    check(limited_after["status"] == "sent" and limited_after["dispatch_attempts"] == 2 and
+          len(Provider.calls) == before + 2,
+          "OFF rate-limited broadcast retries after its persisted boundary")
+    collision = dict(push_body, message="Different content")
+    status(r.request("POST", "/api/admin/push-broadcast", collision, r.admin_token), 409,
+           "OFF idempotency key content collision")
+    status(r.request("POST", "/api/admin/push-broadcast",
+                     {"title": "Missing key", "message": "Rejected"}, r.admin_token), 400,
+           "OFF missing idempotency key rejected")
+    status(r.request("POST", "/api/admin/push-broadcast",
+                     {"title": "Invalid segment", "message": "Rejected",
+                      "target": "segment", "segment_config": {"type": "unknown"},
+                      "idempotency_key": "10000000-0000-4000-8000-000000000004"},
+                     r.admin_token), 400, "OFF invalid segment cannot broaden to all users")
     response = r.request("POST", "/api/admin/push-broadcast", {"title": "Local scheduled",
-                         "message": "Local scheduled message", "scheduled_at": "2099-01-01 00:00:00Z"}, r.admin_token)
+                         "message": "Local scheduled message",
+                         "idempotency_key": "10000000-0000-4000-8000-000000000002",
+                         "scheduled_at": "2099-01-01 00:00:00Z"}, r.admin_token)
     status(response, 200, "OFF schedule push")
     record = next(x for x in r.rows("push_broadcasts") if x["title"] == "Local scheduled")
     status(r.request("POST", "/api/admin/push-broadcast/cancel", {"id": record["id"]}, r.admin_token), 200, "OFF cancel push")
@@ -757,6 +866,50 @@ def background_acceptance(r):
           dispatched["onesignal_id"] == "stub-push",
           "OFF scheduler resolves CommonJS helper and persists dispatch result")
     OBSERVATIONS["scheduler_scope_fix"] = "OFF due-job invocation dispatched exactly once"
+
+    race = r.create("push_broadcasts", {"title": "Concurrent scheduler fixture",
+        "message": "One logical send", "target": "all", "status": "pending",
+        "idempotency_key": "20000000-0000-4000-8000-000000000001",
+        "scheduled_at": "2020-01-01 00:00:00Z"})
+    calls = len(Provider.calls)
+    with concurrent.futures.ThreadPoolExecutor(max_workers=2) as pool:
+        futures = [pool.submit(r.admin, "POST", "/__test/control",
+                               {"cron": "push_broadcast_scheduler"}) for _ in range(2)]
+        for future in futures:
+            future.result()
+    race_after = next(x for x in r.rows("push_broadcasts") if x["id"] == race["id"])
+    check(len(Provider.calls) == calls + 1 and race_after["status"] == "sent" and
+          race_after["dispatch_attempts"] == 1,
+          "OFF concurrent scheduler invocations atomically claim one dispatch")
+
+    cancel_race = r.create("push_broadcasts", {"title": "Cancellation race fixture",
+        "message": "Claim wins before cancellation", "target": "all", "status": "pending",
+        "idempotency_key": "20000000-0000-4000-8000-000000000002",
+        "scheduled_at": "2020-01-01 00:00:00Z"})
+    Provider.pause_entered.clear()
+    Provider.pause_release.clear()
+    Provider.after_send = True
+    with concurrent.futures.ThreadPoolExecutor(max_workers=1) as pool:
+        future = pool.submit(r.admin, "POST", "/__test/control", {"cron": "push_broadcast_scheduler"})
+        check(Provider.pause_entered.wait(5), "OFF broadcast provider call paused after atomic claim")
+        status(r.request("POST", "/api/admin/push-broadcast/cancel", {"id": cancel_race["id"]},
+                         r.admin_token), 409, "OFF cancellation loses cleanly after dispatch claim")
+        Provider.pause_release.set()
+        future.result()
+    Provider.after_send = False
+    cancel_after = next(x for x in r.rows("push_broadcasts") if x["id"] == cancel_race["id"])
+    check(cancel_after["status"] == "sent" and cancel_after["dispatch_attempts"] == 1,
+          "OFF claimed broadcast completes once after cancellation race")
+
+    exhausted = r.create("push_broadcasts", {"title": "Retry cap fixture",
+        "message": "Manual review after three tries", "target": "all", "status": "processing",
+        "idempotency_key": "20000000-0000-4000-8000-000000000003",
+        "dispatch_attempts": 3, "dispatch_started_at": "2020-01-01 00:00:00Z"})
+    calls = len(Provider.calls)
+    r.admin("POST", "/__test/control", {"cron": "push_broadcast_scheduler"})
+    exhausted_after = next(x for x in r.rows("push_broadcasts") if x["id"] == exhausted["id"])
+    check(exhausted_after["status"] == "review_required" and len(Provider.calls) == calls,
+          "OFF retry cap stops uncertain broadcast for operator review")
 
 
 def inspect_logs(r):

@@ -311,10 +311,11 @@ operator reconciliation; this is not a global third-party delivery fence.
 ## Follow-ups outside this implementation
 
 - `/api/lms/send-reminders` is still unauthenticated while OFF.
-- Production verification of the locally tested push-broadcast handler-scope fix
-  remains a separate operator-controlled deployment step.
 - Historical provider-response logging requires a separate review. The local
   fixture scan does not claim to cover every production provider error payload.
+- The handler-scope fix was verified in production under maintenance on
+  2026-09-10. The newer idempotency, atomic-claim, bounded-retry, cancellation
+  race, and strict-segment changes remain locally validated and production-unverified.
 - The generated `work/` tree must stay out of source commits/deployment payloads.
 
 ## Interpreting results
