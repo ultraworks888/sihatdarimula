@@ -548,6 +548,13 @@ def off_acceptance(r):
         before = len(Provider.calls)
         status(r.request("POST", path, body, token), 200, "OFF " + path)
         check(len(Provider.calls) == before + 1, "OFF provider delivery " + path)
+    before = len(Provider.calls)
+    response = r.request("POST", "/api/admin/push-broadcast", {"title": "Local immediate empty segment",
+                         "message": "Local immediate message", "target": "segment",
+                         "segment_config": {"type": "course_enrolled", "courseId": "missing-course"}}, r.admin_token)
+    status(response, 200, "OFF immediate push resolves CommonJS dispatch helper")
+    check(response[1].get("recipients") == 0 and len(Provider.calls) == before,
+          "OFF immediate empty segment records success without provider call")
     response = r.request("POST", "/api/admin/push-broadcast", {"title": "Local scheduled",
                          "message": "Local scheduled message", "scheduled_at": "2099-01-01 00:00:00Z"}, r.admin_token)
     status(response, 200, "OFF schedule push")
@@ -743,14 +750,13 @@ def background_acceptance(r):
               for table, rid in expired_ids.items()), "OFF cleanup positive controls expire eligible OTPs")
     r.admin("POST", "/__test/control", {"cron": "push_reminder_daily"})
     check(len(Provider.calls) == calls + 1, "OFF daily push positive control sends once")
-    # Known defect is deliberately not repaired. Exercise it with actual due
-    # work so suppression during ON is independently meaningful.
     response = r.request("POST", "/__test/control", {"cron": "push_broadcast_scheduler"}, r.super_token)
-    # cronAdd catches/logs handler errors; Job.run() itself returns normally.
-    check(response[0] == 200 and len(Provider.calls) == calls + 1 and
-          next(x for x in r.rows("push_broadcasts") if x["id"] == due["id"])["status"] == "pending",
-          "known OFF scheduler defect retained; no dispatch or bookkeeping")
-    OBSERVATIONS["known_scheduler_defect"] = "OFF due-job invocation fails; unchanged, not repaired"
+    dispatched = next(x for x in r.rows("push_broadcasts") if x["id"] == due["id"])
+    check(response[0] == 200 and len(Provider.calls) == calls + 2 and
+          dispatched["status"] == "sent" and dispatched["recipient_count"] == 1 and
+          dispatched["onesignal_id"] == "stub-push",
+          "OFF scheduler resolves CommonJS helper and persists dispatch result")
+    OBSERVATIONS["scheduler_scope_fix"] = "OFF due-job invocation dispatched exactly once"
 
 
 def inspect_logs(r):
@@ -768,12 +774,10 @@ def inspect_logs(r):
     OBSERVATIONS["logs_scanned"] = [name for name, _ in logs]
     OBSERVATIONS["logs_with_sensitive_fixture_matches"] = leaks
     check(not leaks, "logging: no synthetic OTP/password/digest/salt/token/phone/provider-secret leakage")
-    filtered = [text.replace("ReferenceError: dispatchBroadcast is not defined", "KNOWN_DEFERRED")
-                for _, text in logs]
-    check(any("ReferenceError: dispatchBroadcast is not defined" in text for _, text in logs),
-          "known deferred scheduler error observed in PocketBase logs")
-    check(not any(re.search(r'ReferenceError|TypeError|SyntaxError', text) for text in filtered),
-          "runtime logs: no new hook-load or execution type errors")
+    check(not any("dispatchBroadcast is not defined" in text for _, text in logs),
+          "runtime logs: handler-scope dispatch ReferenceError absent")
+    check(not any(re.search(r'ReferenceError|TypeError|SyntaxError', text) for _, text in logs),
+          "runtime logs: no hook-load or execution type errors")
     check(Provider.unexpected == 0, "network: zero attempts at non-stub provider destinations")
 
 

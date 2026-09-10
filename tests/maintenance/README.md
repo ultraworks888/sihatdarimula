@@ -223,6 +223,7 @@ emergency_users_hardening.pb.js
 export.pb.js
 lms_whatsapp.pb.js
 meta_whatsapp.pb.js
+push_broadcast.js
 push_broadcast.pb.js
 push_reminders.pb.js
 whatsapp.pb.js
@@ -240,7 +241,7 @@ Exact startup migration allowlist (all under `pb_migrations/`):
 absent until AFTER the three auth migrations. No frontend release accompanies
 gate bootstrap. Do not include `work/`, tests, secrets or quarantined migrations
 in the deployment payload. The generated `payload-manifest.json` contains only
-the 14 allowed relative paths, SHA-256 values and roles; hashes are checked before
+the 15 allowed relative paths, SHA-256 values and roles; hashes are checked before
 and after runtime tests. "Existing guarded hook" is the manifest category for
 retained existing hooks, including unchanged read/role/webhook policy hooks.
 
@@ -278,9 +279,9 @@ Pre-auth proofs before and after startup require absent auth migration history,
 absent verification fields, absent hardened OTP collections, and absent verified-
 phone unique index. HTTP(S) is routed through a loopback deny stub; SMTP uses a
 local discard sink. No provider attempt is expected or permitted. Logs are checked
-for hook/schema errors and sensitive synthetic fixture matches. The known
-broadcast defect stays unchanged; this closed-only profile does not exercise it
-OFF (the full suite retains that regression evidence).
+for hook/schema errors and sensitive synthetic fixture matches. This closed-only
+profile verifies that the broadcast module is included in the exact payload; the
+full suite exercises immediate and scheduled broadcast dispatch while OFF.
 
 This proves the local profile, not production topology. Number of workers,
 supervisor/respawn behavior, actual live hook/migration directories, launch command,
@@ -309,8 +310,8 @@ operator reconciliation; this is not a global third-party delivery fence.
 ## Follow-ups outside this implementation
 
 - `/api/lms/send-reminders` is still unauthenticated while OFF.
-- `push_broadcast_scheduler` still fails on handler-scope isolation; do not
-  suppress or repair it opportunistically.
+- Production verification of the locally tested push-broadcast handler-scope fix
+  remains a separate operator-controlled deployment step.
 - Historical provider-response logging requires a separate review. The local
   fixture scan does not claim to cover every production provider error payload.
 - The generated `work/` tree must stay out of source commits/deployment payloads.
