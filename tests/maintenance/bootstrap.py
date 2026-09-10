@@ -339,7 +339,7 @@ def acceptance(r):
     OBS["auth_route_absence"] = {p: 404 for _, p in common.MUTATIONS if p.startswith("/api/auth/")}
     OBS["background"] = {"custom_jobs": custom_jobs, "status_samples": len(samples),
                          "prohibited_mutations": 0, "provider_attempts": 0,
-                         "known_defect": "source unchanged; not exercised OFF in gate-only profile"}
+                         "handler_scope_verification": "fixed and validated locally in full suite; production unverified; OFF dispatch not exercised in gate-only profile"}
     # Alter only synthetic operator control records; never reopen admission.
     for value in ["TRUE", "invalid", "", " false "]:
         r.setting(value)

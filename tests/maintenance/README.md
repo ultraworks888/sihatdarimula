@@ -67,8 +67,9 @@ Do not rerun `work/maintenance/instrument.cjs` against the project.
 - Authenticated WhatsApp webhook ingestion remains allowed and is not included
   in the claim that prohibited application writes stop.
 - Both OTP cleanup jobs, daily push and the broadcast cron pause. Enrollment
-  success callbacks suppress outbound messages. The existing broadcast scheduler
-  scope defect remains unfixed and is tested as a known failure while OFF.
+  success callbacks suppress outbound messages. The broadcast handler-scope fix
+  is validated locally by the full suite while OFF; production remains unverified.
+  The gate-only bootstrap profile tests suppression while ON, not dispatch while OFF.
 - Ordinary password login and refresh are paused while ON. Password login can
   persist authentication-origin data and send alerts; refresh is conservatively
   paused too. Native superuser login remains available.
