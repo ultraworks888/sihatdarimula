@@ -30,7 +30,7 @@ ROOT = common.ROOT
 HOOKS = [
     "maintenance.js", "maintenance.pb.js", "ai_chat.pb.js", "analytics.pb.js",
     "emergency_users_hardening.pb.js", "export.pb.js", "lms_whatsapp.pb.js",
-    "meta_whatsapp.pb.js", "push_broadcast.pb.js", "push_reminders.pb.js",
+    "meta_whatsapp.pb.js", "push_broadcast.js", "push_broadcast.pb.js", "push_reminders.pb.js",
     "whatsapp.pb.js", "whatsapp_webhook.pb.js",
 ]
 MIGRATIONS = ["1788676088_seed_maintenance_mode_setting_bd01.js",
@@ -178,7 +178,7 @@ def no_provider():
 
 
 def verify_payload(r, manifest):
-    check(sorted(p.name for p in r.hooks.iterdir()) == sorted(HOOKS), "exact twelve-hook inventory; no extra hooks")
+    check(sorted(p.name for p in r.hooks.iterdir()) == sorted(HOOKS), "exact thirteen-hook inventory; no extra hooks")
     check(sorted(p.name for p in r.migrations.iterdir()) == sorted(MIGRATIONS), "exact two-migration startup profile")
     for entry in manifest:
         path = r.base / "payload" / entry["path"]
@@ -266,7 +266,7 @@ def prepare(r):
     for directory, files in [("pb_hooks", HOOKS), ("pb_migrations", MIGRATIONS)]:
         for name in files:
             role = "migration" if directory == "pb_migrations" else (
-                "shared helper" if name == "maintenance.js" else
+                "shared helper" if name in ("maintenance.js", "push_broadcast.js") else
                 "maintenance hook" if name == "maintenance.pb.js" else "existing guarded hook")
             rel = directory + "/" + name
             manifest.append({"path": rel, "sha256": hashlib.sha256((ROOT / rel).read_bytes()).hexdigest(), "role": role})
@@ -339,7 +339,7 @@ def acceptance(r):
     OBS["auth_route_absence"] = {p: 404 for _, p in common.MUTATIONS if p.startswith("/api/auth/")}
     OBS["background"] = {"custom_jobs": custom_jobs, "status_samples": len(samples),
                          "prohibited_mutations": 0, "provider_attempts": 0,
-                         "known_defect": "source unchanged; not exercised OFF in gate-only profile"}
+                         "handler_scope_verification": "fixed and validated locally in full suite; production unverified; OFF dispatch not exercised in gate-only profile"}
     # Alter only synthetic operator control records; never reopen admission.
     for value in ["TRUE", "invalid", "", " false "]:
         r.setting(value)

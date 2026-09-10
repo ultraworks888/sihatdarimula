@@ -100,7 +100,7 @@ Never use `pb_data/` as a convenient test fixture.
 #### `push-server/`
 Push-notification subsystem.
 
-Inspect before modifying. Do not assume the known deferred `push_broadcast_scheduler` defect is the only issue in this area.
+Inspect before modifying. Do not assume the historically observed `push_broadcast_scheduler` defect is the only issue in this area.
 
 #### `cloudflare-worker/`
 WhatsApp/Meta security gateway area.
@@ -393,15 +393,20 @@ All code inside `cloudflare-worker/` is also governed by the nested Worker `AGEN
 
 ---
 
-## 11. Known deferred defect — Push Broadcast
+## 11. Push Broadcast — Handler-Scope Fix Pending Production Verification
 
-A known deferred defect exists in the push-broadcast subsystem.
-
-Historical behavior:
-- `push_broadcast_scheduler` cron is broken by handler-scope isolation;
+Historical behavior before the dedicated local fix:
+- `push_broadcast_scheduler` cron was broken by handler-scope isolation;
 - an error has historically occurred every five minutes;
-- immediate broadcast behavior is believed likely affected/broken but has not been conclusively tested;
+- immediate broadcast behavior was likely affected by the same isolation rule;
 - creation/cancellation of future scheduled records was believed unaffected, but this is not current proof.
+
+Current source and local evidence:
+- shared dispatch logic lives in `pb_hooks/push_broadcast.js`;
+- both isolated handlers import that CommonJS module inside their callback scope;
+- the full local PocketBase `v0.29.3` acceptance harness proves immediate empty-segment dispatch and one due scheduled dispatch;
+- local logs contain no handler-scope `ReferenceError`, hook-load error, or duplicate provider call;
+- production behavior remains unverified until the exact reviewed files are deployed under owner approval.
 
 Historical idempotency work has included or contemplated:
 - UUID support;
@@ -414,11 +419,11 @@ Known unresolved area:
 > request-level idempotency is not fully resolved.
 
 Agent rule:
-- do not opportunistically fix this during unrelated tasks;
-- report it as a known deferred defect;
+- preserve the CommonJS handler-scope boundary;
+- do not move shared dispatch functions back to `.pb.js` top level;
 - distinguish current evidence from historical notes;
-- do not suppress the cron error merely to make logs appear clean;
-- do not alter scheduler behavior without a dedicated task and acceptance criteria.
+- do not claim the production defect fixed from local evidence alone;
+- do not alter scheduler behavior again without a dedicated task and acceptance criteria.
 
 ---
 
@@ -685,8 +690,9 @@ Inspect for:
 - accidental generated/binary artifacts;
 - unintended dependency changes.
 
-### Gate I — deferred defect separation
-The push-broadcast defect must remain explicitly separated unless a dedicated task proves it fixed.
+### Gate I — push-broadcast verification boundary
+Treat the handler-scope fix as locally proven and production-unverified until an
+owner-approved deployment verifies the exact files and runtime behavior.
 
 ### Gate J — deployment approval
 Deployment requires explicit owner approval even after all tests pass.
@@ -717,7 +723,7 @@ Examples:
 Examples:
 - non-critical UX defect;
 - degraded error messaging;
-- accepted known scheduler defect;
+- production verification pending for a locally fixed defect;
 - missing non-critical coverage.
 
 Do not downgrade security/data-integrity issues merely because a workaround exists.
