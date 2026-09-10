@@ -1,8 +1,8 @@
-import { useState, useEffect, type FormEvent } from "react";
+import { useState, useEffect, useRef, type FormEvent } from "react";
 import {
   Bell, Send, Users, CheckCircle, XCircle, Clock, Smartphone,
   ExternalLink, CalendarClock, Zap, Trash2, Baby, Heart,
-  BookOpen, Target, Globe, Filter, BellRing, ChevronRight,
+  BookOpen, Target, Globe, Filter, BellRing,
 } from "lucide-react";
 import pb from "../../lib/pocketbase";
 import AppLogo from "../../components/AppLogo";
@@ -31,7 +31,7 @@ interface Broadcast {
   id: string;
   title: string;
   message: string;
-  status: "sent" | "failed" | "pending" | "cancelled";
+  status: "sent" | "failed" | "pending" | "cancelled" | "processing" | "review_required";
   target: string;
   recipient_count: number;
   url: string;
@@ -55,6 +55,8 @@ const statusCfg: Record<string, { cls: string; icon: React.ReactNode; label: str
   sent:      { cls: "bg-emerald-500/15 text-emerald-400", icon: <CheckCircle size={11}/>, label: "Sent"      },
   failed:    { cls: "bg-rose-500/15 text-rose-400",       icon: <XCircle size={11}/>,     label: "Failed"    },
   pending:   { cls: "bg-amber-500/15 text-amber-400",     icon: <Clock size={11}/>,       label: "Scheduled" },
+  processing:{ cls: "bg-sky-500/15 text-sky-400",         icon: <Clock size={11}/>,       label: "Sending"   },
+  review_required: { cls: "bg-rose-500/15 text-rose-400", icon: <XCircle size={11}/>,     label: "Review"    },
   cancelled: { cls: "bg-white/8 text-white/25",           icon: <XCircle size={11}/>,     label: "Cancelled" },
 };
 
@@ -137,8 +139,9 @@ export default function AdminPushBroadcast() {
   const [cancelling,   setCancelling]   = useState<string | null>(null);
   const [result,       setResult]       = useState<{
     ok: boolean; scheduled?: boolean; scheduledAt?: string;
-    recipients?: number; skipped?: boolean; error?: string;
+    processing?: boolean; recipients?: number; skipped?: boolean; error?: string;
   } | null>(null);
+  const retryRef = useRef<{ fingerprint: string; key: string } | null>(null);
   const [history,      setHistory]      = useState<Broadcast[]>([]);
   const [loading,      setLoading]      = useState(true);
 
@@ -158,12 +161,16 @@ export default function AdminPushBroadcast() {
       const items = res.items as unknown as Broadcast[];
       // Pending first, then by created desc
       items.sort((a, b) => {
-        if (a.status === "pending" && b.status !== "pending") return -1;
-        if (a.status !== "pending" && b.status === "pending") return 1;
+        const aActive = a.status === "pending" || a.status === "processing";
+        const bActive = b.status === "pending" || b.status === "processing";
+        if (aActive && !bActive) return -1;
+        if (!aActive && bActive) return 1;
         return new Date(b.created).getTime() - new Date(a.created).getTime();
       });
       setHistory(items);
-    } catch (_) {}
+    } catch {
+      // Keep the existing history visible if a refresh fails.
+    }
     finally { setLoading(false); }
   };
 
@@ -204,21 +211,29 @@ export default function AdminPushBroadcast() {
       const target = segment === "subscribed" ? "subscribed"
                    : segment === "all"        ? "all"
                    : "segment";
-      const body: Record<string, unknown> = {
+      const requestBody: Record<string, unknown> = {
         title: title.trim(), message: message.trim(), url: url.trim(), target,
         ...(segConfig ? { segment_config: segConfig } : {}),
         ...(sendMode === "schedule" && scheduledAt
           ? { scheduled_at: new Date(scheduledAt).toISOString() } : {}),
       };
+      const fingerprint = JSON.stringify(requestBody);
+      if (!retryRef.current || retryRef.current.fingerprint !== fingerprint) {
+        retryRef.current = { fingerprint, key: crypto.randomUUID() };
+      }
+      const body = { ...requestBody, idempotency_key: retryRef.current.key };
       const res = await pb.send("/api/admin/push-broadcast", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(body),
-      }) as { ok: boolean; scheduled?: boolean; scheduled_at?: string; recipients?: number };
+      }) as { ok: boolean; scheduled?: boolean; scheduled_at?: string;
+        status?: string; recipients?: number };
 
+      const processing = res.status === "processing";
       setResult(res.scheduled
         ? { ok: true, scheduled: true, scheduledAt: res.scheduled_at }
-        : { ok: true, recipients: res.recipients });
+        : { ok: true, processing, recipients: res.recipients });
+      retryRef.current = null;
       resetForm();
       fetchHistory();
     } catch (err) {
@@ -236,7 +251,7 @@ export default function AdminPushBroadcast() {
         body: JSON.stringify({ id }),
       });
       fetchHistory();
-    } catch (_) { alert("Failed to cancel. Please try again."); }
+    } catch { alert("Failed to cancel. Please try again."); }
     finally { setCancelling(null); }
   };
 
@@ -474,19 +489,21 @@ export default function AdminPushBroadcast() {
             {result && (
               <div className={`flex items-start gap-2.5 px-4 py-3 rounded-xl border text-sm ${
                 result.ok
-                  ? result.scheduled
+                  ? result.scheduled || result.processing
                     ? "bg-amber-500/10 border-amber-500/20 text-amber-300"
                     : "bg-emerald-500/10 border-emerald-500/20 text-emerald-300"
                   : "bg-rose-500/10 border-rose-500/20 text-rose-300"
               }`}>
                 {result.ok
-                  ? result.scheduled ? <Clock size={16} className="shrink-0 mt-0.5"/>
+                  ? result.scheduled || result.processing ? <Clock size={16} className="shrink-0 mt-0.5"/>
                     : <CheckCircle size={16} className="shrink-0 mt-0.5"/>
                   : <XCircle size={16} className="shrink-0 mt-0.5"/>}
                 <span>
                   {result.ok
                     ? result.scheduled
                       ? <>Broadcast scheduled for <strong>{result.scheduledAt ? toMYT(result.scheduledAt) : "the chosen time"}</strong>.</>
+                      : result.processing
+                        ? "Broadcast accepted and queued for a safe retry."
                       : result.recipients === 0
                         ? "No matching users found for this segment — no notification was sent."
                         : <>Sent to <strong>{result.recipients} device{result.recipients !== 1 ? "s" : ""}</strong> successfully!</>

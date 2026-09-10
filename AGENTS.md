@@ -393,7 +393,7 @@ All code inside `cloudflare-worker/` is also governed by the nested Worker `AGEN
 
 ---
 
-## 11. Push Broadcast — Handler-Scope Fix Pending Production Verification
+## 11. Push Broadcast — Handler Scope Verified; Idempotency Pending Deployment
 
 Historical behavior before the dedicated local fix:
 - `push_broadcast_scheduler` cron was broken by handler-scope isolation;
@@ -406,7 +406,8 @@ Current source and local evidence:
 - both isolated handlers import that CommonJS module inside their callback scope;
 - the full local PocketBase `v0.29.3` acceptance harness proves immediate empty-segment dispatch and one due scheduled dispatch;
 - local logs contain no handler-scope `ReferenceError`, hook-load error, or duplicate provider call;
-- production behavior remains unverified until the exact reviewed files are deployed under owner approval.
+- the exact handler-scope files were owner-approved, installed in production, and verified under maintenance on 2026-09-10;
+- `backup_e_push_broadcast_scope_fix_loaded.zip` is the post-install recovery point.
 
 Historical idempotency work has included or contemplated:
 - UUID support;
@@ -414,15 +415,23 @@ Historical idempotency work has included or contemplated:
 - partial uniqueness index;
 - HTTP `202`.
 
-Known unresolved area:
+The dedicated local idempotency change adds:
 
-> request-level idempotency is not fully resolved.
+- one RFC UUID per logical broadcast, enforced by a partial unique index;
+- an atomic `pending` to `processing` claim before provider contact;
+- OneSignal retry reuse of the same idempotency key;
+- bounded retries and `review_required` terminal handling;
+- atomic cancellation-versus-claim behavior;
+- strict segment validation so malformed segments cannot broaden to all users.
+
+This idempotency change remains local and production-unverified until it completes
+normal review and an owner-approved deployment.
 
 Agent rule:
 - preserve the CommonJS handler-scope boundary;
 - do not move shared dispatch functions back to `.pb.js` top level;
 - distinguish current evidence from historical notes;
-- do not claim the production defect fixed from local evidence alone;
+- distinguish the production-verified handler-scope fix from the local idempotency change;
 - do not alter scheduler behavior again without a dedicated task and acceptance criteria.
 
 ---
