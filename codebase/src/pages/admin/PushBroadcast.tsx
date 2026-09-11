@@ -7,7 +7,7 @@ import {
 import pb from "../../lib/pocketbase";
 import AppLogo from "../../components/AppLogo";
 
-// ── Types ───────────────────────────────────────────────────────────────────
+// -- Types -------------------------------------------------------------------
 
 type SegmentType =
   | "all" | "subscribed"
@@ -43,13 +43,13 @@ interface Broadcast {
 
 interface Course { id: string; title_en: string; }
 
-// ── Constants ────────────────────────────────────────────────────────────────
+// -- Constants ---------------------------------------------------------------
 
 const TITLE_MAX = 60;
 const MSG_MAX   = 200;
 
 const MONTH_OPTS = [0, 1, 2, 3, 4, 5, 6, 9, 12, 18, 24, 36, 48, 60];
-const LANG_LABELS: Record<string, string> = { en: "English", ms: "Bahasa Malaysia", zh: "中文" };
+const LANG_LABELS: Record<string, string> = { en: "English", ms: "Bahasa Malaysia", zh: "\u4e2d\u6587" };
 
 const statusCfg: Record<string, { cls: string; icon: React.ReactNode; label: string }> = {
   sent:      { cls: "bg-emerald-500/15 text-emerald-400", icon: <CheckCircle size={11}/>, label: "Sent"      },
@@ -72,7 +72,7 @@ const SEGMENT_DEFS: {
   { type: "language",       Icon: Globe,    label: "By app language",         desc: "Filter by preferred language set in their profile" },
 ];
 
-// ── Helpers ──────────────────────────────────────────────────────────────────
+// -- Helpers -----------------------------------------------------------------
 
 const toMYT = (iso: string) =>
   new Date(iso).toLocaleString("en-MY", {
@@ -94,7 +94,7 @@ const audienceLabel = (b: Broadcast) => {
   return "All users";
 };
 
-// ── Sub-components ────────────────────────────────────────────────────────────
+// -- Sub-components -----------------------------------------------------------
 
 const StatusBadge = ({ status }: { status: string }) => {
   const cfg = statusCfg[status] ?? statusCfg.failed;
@@ -118,7 +118,7 @@ const SelectInput = ({
   </select>
 );
 
-// ── Main component ────────────────────────────────────────────────────────────
+// -- Main component -----------------------------------------------------------
 
 export default function AdminPushBroadcast() {
   // Form
@@ -183,9 +183,9 @@ export default function AdminPushBroadcast() {
     const map: Record<SegmentType, SegmentConfig | null> = {
       all:            null,
       subscribed:     null,
-      baby_age:       { type: "baby_age",       minMonths: babyMin, maxMonths: babyMax, label: `Baby age ${babyMin}–${babyMax} months` },
+      baby_age:       { type: "baby_age",       minMonths: babyMin, maxMonths: babyMax, label: `Baby age ${babyMin}\u2013${babyMax} months` },
       expectant:      { type: "expectant",       label: "Expectant mothers" },
-      course_enrolled:courseId ? { type: "course_enrolled", courseId, courseName: course?.title_en, label: `Enrolled in: ${course?.title_en ?? "—"}` } : null,
+      course_enrolled:courseId ? { type: "course_enrolled", courseId, courseName: course?.title_en, label: `Enrolled in: ${course?.title_en ?? "\u2014"}` } : null,
       not_enrolled:   { type: "not_enrolled",    label: "Not yet enrolled in any course" },
       language:       { type: "language",        lang,  label: `App language: ${LANG_LABELS[lang]}` },
     };
@@ -263,7 +263,7 @@ export default function AdminPushBroadcast() {
   return (
     <div className="space-y-6">
 
-      {/* ── Header ─────────────────────────────────────────────────────── */}
+      {/* -- Header ------------------------------------------------------- */}
       <div className="flex items-center gap-3">
         <div className="w-10 h-10 rounded-2xl flex items-center justify-center"
           style={{ background: "rgba(139,92,246,0.15)" }}>
@@ -275,7 +275,7 @@ export default function AdminPushBroadcast() {
         </div>
       </div>
 
-      {/* ── Stats ──────────────────────────────────────────────────────── */}
+      {/* -- Stats -------------------------------------------------------- */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
         {[
           { Icon: Send,       label: "Broadcasts Sent",   value: totalSent,      color: "#8b5cf6" },
@@ -297,10 +297,10 @@ export default function AdminPushBroadcast() {
         ))}
       </div>
 
-      {/* ── Compose + Preview ──────────────────────────────────────────── */}
+      {/* -- Compose + Preview -------------------------------------------- */}
       <div className="grid lg:grid-cols-5 gap-5">
 
-        {/* Compose — 3 cols */}
+        {/* Compose - 3 cols */}
         <div className="lg:col-span-3 rounded-2xl border border-white/5 p-5 space-y-5"
           style={{ background: "rgba(255,255,255,0.03)" }}>
 
@@ -335,7 +335,7 @@ export default function AdminPushBroadcast() {
               </div>
               <textarea value={message} required rows={3}
                 onChange={e => setMessage(e.target.value.slice(0, MSG_MAX))}
-                placeholder="e.g. Our new Breastfeeding Basics course is now live — tap to start learning!"
+                placeholder={"e.g. Our new Breastfeeding Basics course is now live \u2014 tap to start learning!"}
                 className="w-full px-4 py-3 rounded-xl bg-white/5 border border-white/10 text-white text-sm
                   placeholder-white/20 outline-none focus:border-violet-500/50 transition-colors resize-none" />
             </div>
@@ -344,15 +344,15 @@ export default function AdminPushBroadcast() {
             <div>
               <label className="text-white/50 text-[11px] font-semibold uppercase tracking-wide flex items-center gap-1.5 mb-1.5">
                 <ExternalLink size={11} /> Deep Link
-                <span className="text-white/20 normal-case font-normal">— optional</span>
+                <span className="text-white/20 normal-case font-normal">{"\u2014 optional"}</span>
               </label>
               <input type="url" value={url} onChange={e => setUrl(e.target.value)}
-                placeholder="https://app.sihatdarimula.my/courses/…"
+                placeholder={"https://app.sihatdarimula.my/courses/\u2026"}
                 className="w-full px-4 py-3 rounded-xl bg-white/5 border border-white/10 text-white text-sm
                   placeholder-white/20 outline-none focus:border-violet-500/50 transition-colors" />
             </div>
 
-            {/* ── Audience Segment ───────────────────────────────────── */}
+            {/* -- Audience Segment ------------------------------------- */}
             <div>
               <label className="text-white/50 text-[11px] font-semibold uppercase tracking-wide flex items-center gap-1.5 mb-3">
                 <Filter size={11} /> Audience Segment
@@ -382,7 +382,7 @@ export default function AdminPushBroadcast() {
                         </div>
                         <p className="text-white/30 text-[11px] mt-0.5 ml-5 leading-snug">{desc}</p>
 
-                        {/* ── Sub-options ─────────────────────────── */}
+                        {/* -- Sub-options --------------------------- */}
                         {active && type === "baby_age" && (
                           <div className="mt-3 ml-5 flex flex-wrap items-center gap-2">
                             <span className="text-white/50 text-xs">From</span>
@@ -410,7 +410,7 @@ export default function AdminPushBroadcast() {
                               <p className="text-white/30 text-xs">No published courses found.</p>
                             ) : (
                               <SelectInput value={courseId} onChange={setCourseId} className="w-full max-w-xs">
-                                <option value="">— Select a course —</option>
+                                <option value="">{"\u2014 Select a course \u2014"}</option>
                                 {courses.map(c => (
                                   <option key={c.id} value={c.id}>{c.title_en}</option>
                                 ))}
@@ -443,7 +443,7 @@ export default function AdminPushBroadcast() {
               </div>
             </div>
 
-            {/* ── When to send ───────────────────────────────────────── */}
+            {/* -- When to send ----------------------------------------- */}
             <div>
               <label className="text-white/50 text-[11px] font-semibold uppercase tracking-wide flex items-center gap-1.5 mb-2">
                 <CalendarClock size={11} /> When to Send
@@ -468,7 +468,7 @@ export default function AdminPushBroadcast() {
                 <div className="rounded-xl border border-amber-500/20 bg-amber-500/5 p-3 space-y-2">
                   <label className="text-amber-300/80 text-[11px] font-semibold flex items-center gap-1.5">
                     <Clock size={11}/> Date & Time
-                    <span className="text-amber-300/40 font-normal">(Malaysia Time — UTC+8)</span>
+                    <span className="text-amber-300/40 font-normal">{"(Malaysia Time \u2014 UTC+8)"}</span>
                   </label>
                   <input type="datetime-local"
                     value={scheduledAt} min={minDateTime()}
@@ -479,7 +479,7 @@ export default function AdminPushBroadcast() {
                       [&::-webkit-calendar-picker-indicator]:invert [&::-webkit-calendar-picker-indicator]:opacity-40"
                   />
                   <p className="text-white/25 text-[10px] leading-snug">
-                    Checked every 5 minutes — your notification goes out within 5 minutes of the chosen time.
+                    {"Checked every 5 minutes \u2014 your notification goes out within 5 minutes of the chosen time."}
                   </p>
                 </div>
               )}
@@ -505,7 +505,7 @@ export default function AdminPushBroadcast() {
                       : result.processing
                         ? "Broadcast accepted and queued for a safe retry."
                       : result.recipients === 0
-                        ? "No matching users found for this segment — no notification was sent."
+                        ? "No matching users found for this segment \u2014 no notification was sent."
                         : <>Sent to <strong>{result.recipients} device{result.recipients !== 1 ? "s" : ""}</strong> successfully!</>
                     : `Failed: ${result.error || "Please try again."}`}
                 </span>
@@ -521,7 +521,7 @@ export default function AdminPushBroadcast() {
                 ? "linear-gradient(135deg,#b45309,#d97706)"
                 : "linear-gradient(135deg,#7c3aed,#db2777)" }}>
               {sending ? (
-                <><div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin"/>Processing…</>
+                <><div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin"/>{"Processing\u2026"}</>
               ) : sendMode === "schedule" ? (
                 <><CalendarClock size={16}/>Schedule Broadcast</>
               ) : (
@@ -531,7 +531,7 @@ export default function AdminPushBroadcast() {
           </form>
         </div>
 
-        {/* Preview — 2 cols */}
+        {/* Preview - 2 cols */}
         <div className="lg:col-span-2">
           <div className="rounded-2xl border border-white/5 p-5 lg:sticky lg:top-6"
             style={{ background: "rgba(255,255,255,0.03)" }}>
@@ -574,10 +574,10 @@ export default function AdminPushBroadcast() {
                   </div>
                   <div className="px-3 pb-3 pt-1">
                     <p className="text-white text-[13px] font-bold leading-snug min-h-[18px]">
-                      {title.trim() || <span className="text-white/20 italic font-normal">Title…</span>}
+                      {title.trim() || <span className="text-white/20 italic font-normal">{"Title\u2026"}</span>}
                     </p>
                     <p className="text-white/55 text-[11px] leading-snug mt-0.5 min-h-[16px] line-clamp-2">
-                      {message.trim() || <span className="text-white/20 italic">Message…</span>}
+                      {message.trim() || <span className="text-white/20 italic">{"Message\u2026"}</span>}
                     </p>
                   </div>
                 </div>
@@ -594,13 +594,13 @@ export default function AdminPushBroadcast() {
                 <p className="text-white/70 text-xs mt-0.5 font-medium leading-snug">
                   {segment === "all"            ? "All registered users"
                    : segment === "subscribed"   ? "Push subscribers only"
-                   : segment === "baby_age"     ? `Babies ${babyMin}–${babyMax} months old`
+                    : segment === "baby_age"     ? `Babies ${babyMin}\u2013${babyMax} months old`
                    : segment === "expectant"    ? "Expectant mothers"
                    : segment === "course_enrolled"
-                     ? (courseId ? `Enrolled in: ${courses.find(c => c.id === courseId)?.title_en ?? "—"}` : "— Select a course")
+                      ? (courseId ? `Enrolled in: ${courses.find(c => c.id === courseId)?.title_en ?? "\u2014"}` : "\u2014 Select a course")
                    : segment === "not_enrolled" ? "Not yet enrolled in any course"
                    : segment === "language"     ? `App language: ${LANG_LABELS[lang]}`
-                   : "—"}
+                    : "\u2014"}
                 </p>
               </div>
             </div>
@@ -610,7 +610,7 @@ export default function AdminPushBroadcast() {
         </div>
       </div>
 
-      {/* ── Upcoming scheduled ─────────────────────────────────────────── */}
+      {/* -- Upcoming scheduled ------------------------------------------- */}
       {pending.length > 0 && (
         <div className="rounded-2xl border border-amber-500/15 overflow-hidden"
           style={{ background: "rgba(245,158,11,0.04)" }}>
@@ -646,7 +646,7 @@ export default function AdminPushBroadcast() {
                       disabled={cancelling === b.id}
                       className="flex items-center gap-1 text-rose-400/70 hover:text-rose-400 text-[11px] font-semibold transition-colors disabled:opacity-40 ml-auto">
                       <Trash2 size={11}/>
-                      {cancelling === b.id ? "Cancelling…" : "Cancel"}
+                      {cancelling === b.id ? "Cancelling\u2026" : "Cancel"}
                     </button>
                   </div>
                 </div>
@@ -656,7 +656,7 @@ export default function AdminPushBroadcast() {
         </div>
       )}
 
-      {/* ── History ────────────────────────────────────────────────────── */}
+      {/* -- History ------------------------------------------------------ */}
       <div className="rounded-2xl border border-white/5 overflow-hidden"
         style={{ background: "rgba(255,255,255,0.03)" }}>
         <div className="flex items-center justify-between px-5 py-4 border-b border-white/5">
