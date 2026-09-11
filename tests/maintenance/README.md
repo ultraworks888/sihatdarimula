@@ -314,8 +314,10 @@ operator reconciliation; this is not a global third-party delivery fence.
 - Historical provider-response logging requires a separate review. The local
   fixture scan does not claim to cover every production provider error payload.
 - The handler-scope fix was verified in production under maintenance on
-  2026-09-10. The newer idempotency, atomic-claim, bounded-retry, cancellation
-  race, and strict-segment changes remain locally validated and production-unverified.
+  2026-09-10. The idempotency migration and backend hooks were installed and
+  loaded cleanly under maintenance on 2026-09-11 using the applied-history name
+  `1789104798_harden_push_broadcast_idempotency_8a31_7d03.js`. The matching
+  frontend and dispatch while maintenance is open remain production-unverified.
 - The generated `work/` tree must stay out of source commits/deployment payloads.
 
 ## Interpreting results
