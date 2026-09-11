@@ -389,7 +389,7 @@ def main():
 
 def migration_acceptance(r):
     filename = "1788676088_seed_maintenance_mode_setting_bd01.js"
-    broadcast_filename = "1789069155_harden_push_broadcast_idempotency_8a31.js"
+    broadcast_filename = "1789104798_harden_push_broadcast_idempotency_8a31_7d03.js"
     state = lambda: r.sql("SELECT value FROM lms_settings WHERE key='maintenance_mode'")
     history = lambda: r.sql("SELECT file FROM _migrations WHERE file=?", (filename,))
     check(state() == [("false",)] and len(history()) == 1, "migration fresh UP seeds one false")

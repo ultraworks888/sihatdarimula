@@ -393,7 +393,7 @@ All code inside `cloudflare-worker/` is also governed by the nested Worker `AGEN
 
 ---
 
-## 11. Push Broadcast — Handler Scope Verified; Idempotency Pending Deployment
+## 11. Push Broadcast — Backend Idempotency Installed; Frontend Pending Deployment
 
 Historical behavior before the dedicated local fix:
 - `push_broadcast_scheduler` cron was broken by handler-scope isolation;
@@ -424,14 +424,21 @@ The dedicated local idempotency change adds:
 - atomic cancellation-versus-claim behavior;
 - strict segment validation so malformed segments cannot broaden to all users.
 
-This idempotency change remains local and production-unverified until it completes
-normal review and an owner-approved deployment.
+The idempotency migration and backend hooks were owner-approved, installed in
+production, and loaded cleanly under maintenance on 2026-09-11. Coderick created
+the live migration as
+`1789104798_harden_push_broadcast_idempotency_8a31_7d03.js`; repository source
+uses that exact applied-history filename so a future deployment cannot reapply
+the same schema change under an alternate name. The matching frontend remains
+undeployed, and dispatch while maintenance is open remains production-unverified.
+`backup_f_before_push_idempotency.zip` is the pre-install recovery point.
 
 Agent rule:
 - preserve the CommonJS handler-scope boundary;
 - do not move shared dispatch functions back to `.pb.js` top level;
 - distinguish current evidence from historical notes;
-- distinguish the production-verified handler-scope fix from the local idempotency change;
+- distinguish the production-loaded backend idempotency change from its pending
+  frontend and open-maintenance dispatch verification;
 - do not alter scheduler behavior again without a dedicated task and acceptance criteria.
 
 ---
